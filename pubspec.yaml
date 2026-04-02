@@ -1,0 +1,28 @@
+name: tryingg_flutter
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.3
+
+dependencies:
+  flutter:
+    sdk: flutter
+  image_picker: ^1.0.4
+  tflite_flutter: ^0.12.1
+  image: ^4.0.0
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/yolov8n_float32.tflite
+    - assets/labels.txt
