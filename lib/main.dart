@@ -39,6 +39,7 @@ class _YoloAppState extends State<YoloApp> {
   List<Recognition> _results = [];
   bool _isProcessing = false;
   bool _modelReady = false;
+  bool _modelError = false;
 
   // Novos estados para interação
   bool _isRegionMode = false;      // Modo de seleção por região
@@ -73,13 +74,17 @@ class _YoloAppState extends State<YoloApp> {
       setState(() => _modelReady = true);
     } catch (e) {
       debugPrint('[YOLO] Failed to load model: $e');
+      setState(() => _modelError = true);
     }
   }
 
   Future<void> _processImage(ImageSource source) async {
     if (!_modelReady) {
+      final msg = _modelError
+          ? 'Erro ao carregar modelo. Reinicie o app.'
+          : 'Modelo ainda carregando, aguarde...';
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Modelo ainda carregando, aguarde...')),
+        SnackBar(content: Text(msg)),
       );
       return;
     }
@@ -673,7 +678,7 @@ class _YoloAppState extends State<YoloApp> {
                                               child: Text(
                                                 _awaitingRegionSelection
                                                     ? 'Arraste para selecionar área'
-                                                    : 'Arraste para selecionar área',
+                                                    : 'Solte para confirmar',
                                                 style: const TextStyle(
                                                   color: Colors.white,
                                                   fontSize: 16,
