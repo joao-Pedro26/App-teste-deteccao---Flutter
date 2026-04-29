@@ -48,11 +48,18 @@ class _YoloAppState extends State<YoloApp> {
   bool _regionProcessed = false;           // Região já foi processada
   final List<_EditAction> _undoStack = [];
   static const int _maxUndoDepth = 20;
+  final TransformationController _transformationController = TransformationController();
 
   @override
   void initState() {
     super.initState();
     _loadModel();
+  }
+
+  @override
+  void dispose() {
+    _transformationController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadModel() async {
@@ -82,6 +89,7 @@ class _YoloAppState extends State<YoloApp> {
       _decodedImage = null;
       _awaitingRegionSelection = true; // Aguarda seleção
       _regionProcessed = false;
+      _transformationController.value = Matrix4.identity();
     });
   }
 
@@ -463,9 +471,16 @@ class _YoloAppState extends State<YoloApp> {
                                 _decodedImage!.width / _decodedImage!.height;
                           }
 
-                          return AspectRatio(
-                            aspectRatio: aspectRatio,
-                            child: GestureDetector(
+                          return InteractiveViewer(
+                            transformationController: _transformationController,
+                            panEnabled: !_isRegionMode,
+                            scaleEnabled: true,
+                            minScale: 1.0,
+                            maxScale: 6.0,
+                            boundaryMargin: EdgeInsets.zero,
+                            child: AspectRatio(
+                              aspectRatio: aspectRatio,
+                              child: GestureDetector(
                               onPanStart: _isRegionMode
                                   ? (details) {
                                       setState(() {
@@ -613,6 +628,7 @@ class _YoloAppState extends State<YoloApp> {
                                 ],
                               ),
                             ),
+                          ),
                           );
                         },
                       ),
