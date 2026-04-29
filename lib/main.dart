@@ -50,6 +50,10 @@ class _YoloAppState extends State<YoloApp> {
   static const int _maxUndoDepth = 20;
   final TransformationController _transformationController = TransformationController();
 
+  Rect? _manualBoxRect;
+  bool _isManualBoxActive = false;
+  int _activeHandleIndex = -1;
+
   @override
   void initState() {
     super.initState();
@@ -302,60 +306,76 @@ class _YoloAppState extends State<YoloApp> {
     return true;
   }
 
-  /// Adicionar box manualmente via dialog
-  Future<void> _addManualBox(Offset tapPosition) async {
-    if (_currentWidgetSize == null) return;
+  Future<void> _runInferenceOnTap(Offset normalizedTap) async {
+    if (_decodedImage == null) return;
 
-    // Converter tap para normalizado
-    final normalizedTap = Offset(
-      tapPosition.dx / _currentWidgetSize!.width,
-      tapPosition.dy / _currentWidgetSize!.height,
+    const double halfCrop = 0.09;
+    final cropRect = Rect.fromLTRB(
+      (normalizedTap.dx - halfCrop).clamp(0.0, 1.0),
+      (normalizedTap.dy - halfCrop).clamp(0.0, 1.0),
+      (normalizedTap.dx + halfCrop).clamp(0.0, 1.0),
+      (normalizedTap.dy + halfCrop).clamp(0.0, 1.0),
     );
 
-    // Dialog para selecionar label
-    final selectedLabel = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF16213E),
-        title: const Text(
-          'Adicionar Objeto',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView(
-            shrinkWrap: true,
-            children: _yoloService.labels.map((label) {
-              return ListTile(
-                title: Text(label, style: const TextStyle(color: Colors.white)),
-                onTap: () => Navigator.pop(context, label),
-              );
-            }).toList(),
-          ),
-        ),
-      ),
-    );
+    setState(() => _isProcessing = true);
 
-    if (selectedLabel == null) return;
+    try {
+      final rx = (cropRect.left * _decodedImage!.width).round();
+      final ry = (cropRect.top * _decodedImage!.height).round();
+      final rw = (cropRect.width * _decodedImage!.width).round().clamp(1, _decodedImage!.width);
+      final rh = (cropRect.height * _decodedImage!.height).round().clamp(1, _decodedImage!.height);
 
-    // Criar box com tamanho padrão (~5% da imagem)
-    const boxSize = 0.05;
-    final halfSize = boxSize / 2;
+      final cropped = img.copyCrop(_decodedImage!, x: rx, y: ry, width: rw, height: rh);
+      final detections = await _yoloService.runInference(cropped);
 
-    final newBox = Recognition(
-      _yoloService.labels.indexOf(selectedLabel),
-      selectedLabel,
-      1.0, // Confiança máxima para boxes manuais
-      Rect.fromLTRB(
-        (normalizedTap.dx - halfSize).clamp(0.0, 1.0),
-        (normalizedTap.dy - halfSize).clamp(0.0, 1.0),
-        (normalizedTap.dx + halfSize).clamp(0.0, 1.0),
-        (normalizedTap.dy + halfSize).clamp(0.0, 1.0),
-      ),
-    );
+      final offsetDetections = detections.map((d) => Recognition(
+            d.classId,
+            d.label,
+            d.score,
+            Rect.fromLTRB(
+              cropRect.left + d.location.left * cropRect.width,
+              cropRect.top + d.location.top * cropRect.height,
+              cropRect.left + d.location.right * cropRect.width,
+              cropRect.top + d.location.bottom * cropRect.height,
+            ),
+            angle: d.angle,
+          )).toList();
 
+      final newDetections = offsetDetections.where((newD) {
+        return !_results.any(
+          (existing) => YoloService.iou(newD.location, existing.location) > YoloService.nmsThreshold,
+        );
+      }).toList();
+
+      setState(() => _isProcessing = false);
+
+      if (newDetections.isNotEmpty) {
+        setState(() {
+          _results.addAll(newDetections);
+          _undoStack.add(_AddedDetections(List.of(newDetections)));
+          if (_undoStack.length > _maxUndoDepth) _undoStack.removeAt(0);
+        });
+      } else {
+        _openManualBoxEditor(normalizedTap);
+      }
+    } catch (e) {
+      debugPrint('Erro na inferência de tap: $e');
+      setState(() => _isProcessing = false);
+      _openManualBoxEditor(normalizedTap);
+    }
+  }
+
+  void _openManualBoxEditor(Offset normalizedCenter) {
+    const double defaultSize = 0.08;
     setState(() {
-      _results.add(newBox);
+      _manualBoxRect = Rect.fromLTRB(
+        (normalizedCenter.dx - defaultSize / 2).clamp(0.0, 1.0),
+        (normalizedCenter.dy - defaultSize / 2).clamp(0.0, 1.0),
+        (normalizedCenter.dx + defaultSize / 2).clamp(0.0, 1.0),
+        (normalizedCenter.dy + defaultSize / 2).clamp(0.0, 1.0),
+      );
+      _isManualBoxActive = true;
+      _activeHandleIndex = -1;
     });
   }
 
@@ -386,10 +406,10 @@ class _YoloAppState extends State<YoloApp> {
   /// Handler para tap na imagem (modo edição)
   void _handleImageTap(Offset tapPosition) {
     if (!_isEditMode) return;
+    if (_isManualBoxActive) return;
 
     final hitBox = _hitTest(tapPosition);
     if (hitBox != null) {
-      // Tap em box existente - remover
       _removeBox(hitBox);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -399,8 +419,12 @@ class _YoloAppState extends State<YoloApp> {
         ),
       );
     } else {
-      // Tap em área vazia - adicionar nova box
-      _addManualBox(tapPosition);
+      if (_currentWidgetSize == null) return;
+      final normalizedTap = Offset(
+        tapPosition.dx / _currentWidgetSize!.width,
+        tapPosition.dy / _currentWidgetSize!.height,
+      );
+      _runInferenceOnTap(normalizedTap);
     }
   }
 
