@@ -47,7 +47,6 @@ class _YoloAppState extends State<YoloApp> {
   Rect? _draggingRegion;           // Retângulo sendo desenhado (coordenadas normalizadas)
   Size? _currentWidgetSize;        // Tamanho atual do widget para conversão de coordenadas
   bool _awaitingRegionSelection = false;  // Aguarda seleção de região antes de processar
-  bool _regionProcessed = false;           // Região já foi processada
   final List<_EditAction> _undoStack = [];
   static const int _maxUndoDepth = 20;
   final TransformationController _transformationController = TransformationController();
@@ -55,6 +54,7 @@ class _YoloAppState extends State<YoloApp> {
   Rect? _manualBoxRect;
   bool _isManualBoxActive = false;
   int _activeHandleIndex = -1;
+  List<Rect> _savedRegions = [];
 
   @override
   void initState() {
@@ -102,7 +102,7 @@ class _YoloAppState extends State<YoloApp> {
       _imageFile = File(picked.path);
       _decodedImage = null;
       _awaitingRegionSelection = true; // Aguarda seleção
-      _regionProcessed = false;
+      _savedRegions = [];
       _transformationController.value = Matrix4.identity();
     });
   }
@@ -124,64 +124,15 @@ class _YoloAppState extends State<YoloApp> {
     return counts.entries.map((e) => '${e.value}x ${e.key}').join('  |  ');
   }
 
-  /// Crop da imagem original para uma região e offset das boxes resultantes
-  Future<void> _runInferenceOnRegion(Rect region) async {
-    if (_decodedImage == null) {
-      // Imagem ainda não decodificada - primeiro processamento
-      await _confirmRegionAndProcess();
-      return;
-    }
-
-    setState(() => _isProcessing = true);
-
-    try {
-      // Converter região normalizada para pixels na imagem original
-      final int rx = (region.left * _decodedImage!.width).round();
-      final int ry = (region.top * _decodedImage!.height).round();
-      final int rw = (region.width * _decodedImage!.width).round();
-      final int rh = (region.height * _decodedImage!.height).round();
-
-      // Crop da imagem
-      final cropped = img.copyCrop(_decodedImage!, x: rx, y: ry, width: rw, height: rh);
-
-      // Run inference na região cropada
-      final detections = await _yoloService.runInference(cropped);
-
-      // Offset das boxes para coordenadas da imagem original
-      final offsetDetections = detections.map((d) {
-        final newLeft = region.left + (d.location.left * region.width);
-        final newTop = region.top + (d.location.top * region.height);
-        final newRight = region.left + (d.location.right * region.width);
-        final newBottom = region.top + (d.location.bottom * region.height);
-
-        return Recognition(
-          d.classId,
-          d.label,
-          d.score,
-          Rect.fromLTRB(newLeft, newTop, newRight, newBottom),
-          angle: d.angle,
-        );
-      }).toList();
-
-      setState(() {
-        _results = offsetDetections;
-        _undoStack.clear();
-        _isProcessing = false;
-        _regionProcessed = true;
-      });
-    } catch (e) {
-      debugPrint('Erro na inferência regional: $e');
-      setState(() => _isProcessing = false);
-    }
-  }
-
-  /// Confirma a região selecionada e processa
+  /// Confirma as regiões selecionadas e processa
   Future<void> _confirmRegionAndProcess() async {
     if (_imageFile == null) return;
 
     setState(() {
       _awaitingRegionSelection = false;
+      _isRegionMode = false;
       _isProcessing = true;
+      _draggingRegion = null;
     });
 
     try {
@@ -189,53 +140,52 @@ class _YoloAppState extends State<YoloApp> {
       final decoded = img.decodeImage(bytes);
 
       if (decoded != null) {
-        // Se há região selecionada, usa ela; caso contrário, imagem toda
-        Rect region = _draggingRegion ?? Rect.fromLTWH(0, 0, 1, 1);
+        final regions = _savedRegions.isNotEmpty
+            ? List<Rect>.from(_savedRegions)
+            : [Rect.fromLTWH(0, 0, 1, 1)];
 
-        if (region != Rect.fromLTWH(0, 0, 1, 1) && region.width > 0.02 && region.height > 0.02) {
-          // Processar apenas região
-          final int rx = (region.left * decoded.width).round();
-          final int ry = (region.top * decoded.height).round();
-          final int rw = (region.width * decoded.width).round();
-          final int rh = (region.height * decoded.height).round();
+        final List<Recognition> allDetections = [];
 
-          final cropped = img.copyCrop(decoded, x: rx, y: ry, width: rw, height: rh);
-          final detections = await _yoloService.runInference(cropped);
+        for (final region in regions) {
+          List<Recognition> detections;
 
-          // Offset das boxes para coordenadas da imagem original
-          final offsetDetections = detections.map((d) {
-            final newLeft = region.left + (d.location.left * region.width);
-            final newTop = region.top + (d.location.top * region.height);
-            final newRight = region.left + (d.location.right * region.width);
-            final newBottom = region.top + (d.location.bottom * region.height);
+          if (region.left == 0 && region.top == 0 && region.right == 1 && region.bottom == 1) {
+            detections = await _yoloService.runInference(decoded);
+          } else {
+            final int rx = (region.left * decoded.width).round();
+            final int ry = (region.top * decoded.height).round();
+            final int rw = (region.width * decoded.width).round().clamp(1, decoded.width);
+            final int rh = (region.height * decoded.height).round().clamp(1, decoded.height);
 
-            return Recognition(
-              d.classId,
-              d.label,
-              d.score,
-              Rect.fromLTRB(newLeft, newTop, newRight, newBottom),
+            final cropped = img.copyCrop(decoded, x: rx, y: ry, width: rw, height: rh);
+            final regional = await _yoloService.runInference(cropped);
+
+            detections = regional.map((d) => Recognition(
+              d.classId, d.label, d.score,
+              Rect.fromLTRB(
+                region.left + d.location.left * region.width,
+                region.top + d.location.top * region.height,
+                region.left + d.location.right * region.width,
+                region.top + d.location.bottom * region.height,
+              ),
               angle: d.angle,
-            );
-          }).toList();
+            )).toList();
+          }
 
-          setState(() {
-            _decodedImage = decoded;
-            _results = offsetDetections;
-            _undoStack.clear();
-            _isProcessing = false;
-            _regionProcessed = true;
-          });
-        } else {
-          // Processar imagem toda
-          final detections = await _yoloService.runInference(decoded);
-          setState(() {
-            _decodedImage = decoded;
-            _results = detections;
-            _undoStack.clear();
-            _isProcessing = false;
-            _regionProcessed = true;
-          });
+          for (final newD in detections) {
+            final isDup = allDetections.any(
+              (e) => YoloService.iou(newD.location, e.location) > YoloService.nmsThreshold,
+            );
+            if (!isDup) allDetections.add(newD);
+          }
         }
+
+        setState(() {
+          _decodedImage = decoded;
+          _results = allDetections;
+          _undoStack.clear();
+          _isProcessing = false;
+        });
       }
     } catch (e) {
       debugPrint('Erro no processamento: $e');
@@ -314,65 +264,6 @@ class _YoloAppState extends State<YoloApp> {
       }
     }
     return true;
-  }
-
-  Future<void> _runInferenceOnTap(Offset normalizedTap) async {
-    if (_decodedImage == null) return;
-
-    const double halfCrop = 0.09;
-    final cropRect = Rect.fromLTRB(
-      (normalizedTap.dx - halfCrop).clamp(0.0, 1.0),
-      (normalizedTap.dy - halfCrop).clamp(0.0, 1.0),
-      (normalizedTap.dx + halfCrop).clamp(0.0, 1.0),
-      (normalizedTap.dy + halfCrop).clamp(0.0, 1.0),
-    );
-
-    setState(() => _isProcessing = true);
-
-    try {
-      final rx = (cropRect.left * _decodedImage!.width).round();
-      final ry = (cropRect.top * _decodedImage!.height).round();
-      final rw = (cropRect.width * _decodedImage!.width).round().clamp(1, _decodedImage!.width);
-      final rh = (cropRect.height * _decodedImage!.height).round().clamp(1, _decodedImage!.height);
-
-      final cropped = img.copyCrop(_decodedImage!, x: rx, y: ry, width: rw, height: rh);
-      final detections = await _yoloService.runInference(cropped);
-
-      final offsetDetections = detections.map((d) => Recognition(
-            d.classId,
-            d.label,
-            d.score,
-            Rect.fromLTRB(
-              cropRect.left + d.location.left * cropRect.width,
-              cropRect.top + d.location.top * cropRect.height,
-              cropRect.left + d.location.right * cropRect.width,
-              cropRect.top + d.location.bottom * cropRect.height,
-            ),
-            angle: d.angle,
-          )).toList();
-
-      final newDetections = offsetDetections.where((newD) {
-        return !_results.any(
-          (existing) => YoloService.iou(newD.location, existing.location) > YoloService.nmsThreshold,
-        );
-      }).toList();
-
-      setState(() => _isProcessing = false);
-
-      if (newDetections.isNotEmpty) {
-        setState(() {
-          _results.addAll(newDetections);
-          _undoStack.add(_AddedDetections(List.of(newDetections)));
-          if (_undoStack.length > _maxUndoDepth) _undoStack.removeAt(0);
-        });
-      } else {
-        _openManualBoxEditor(normalizedTap);
-      }
-    } catch (e) {
-      debugPrint('Erro na inferência de tap: $e');
-      setState(() => _isProcessing = false);
-      _openManualBoxEditor(normalizedTap);
-    }
   }
 
   void _openManualBoxEditor(Offset normalizedCenter) {
@@ -492,7 +383,7 @@ class _YoloAppState extends State<YoloApp> {
         tapPosition.dx / _currentWidgetSize!.width,
         tapPosition.dy / _currentWidgetSize!.height,
       );
-      _runInferenceOnTap(normalizedTap);
+      _openManualBoxEditor(normalizedTap);
     }
   }
 
@@ -568,7 +459,7 @@ class _YoloAppState extends State<YoloApp> {
                             // RenderTransform.hitTestChildren applies inverse transform automatically,
                             // so GestureDetector.localPosition inside this viewer is already in
                             // the child's coordinate space — no manual matrix inversion needed.
-                            panEnabled: !_isRegionMode && !_isManualBoxActive,
+                            panEnabled: !_isRegionMode && !_isManualBoxActive && !_awaitingRegionSelection,
                             scaleEnabled: true,
                             minScale: 1.0,
                             maxScale: 6.0,
@@ -576,9 +467,9 @@ class _YoloAppState extends State<YoloApp> {
                             child: AspectRatio(
                               aspectRatio: aspectRatio,
                               child: GestureDetector(
-                              onPanStart: (_isRegionMode || _isManualBoxActive)
+                              onPanStart: (_isRegionMode || _awaitingRegionSelection || _isManualBoxActive)
                                   ? (details) {
-                                      if (_isRegionMode) {
+                                      if (_isRegionMode || _awaitingRegionSelection) {
                                         setState(() {
                                           _draggingRegion = Rect.fromLTWH(
                                             details.localPosition.dx / constraints.maxWidth,
@@ -597,9 +488,9 @@ class _YoloAppState extends State<YoloApp> {
                                       }
                                     }
                                   : null,
-                              onPanUpdate: (_isRegionMode || _isManualBoxActive)
+                              onPanUpdate: (_isRegionMode || _awaitingRegionSelection || _isManualBoxActive)
                                   ? (details) {
-                                      if (_isRegionMode) {
+                                      if (_isRegionMode || _awaitingRegionSelection) {
                                         setState(() {
                                           final left = min(_draggingRegion!.left, details.localPosition.dx / constraints.maxWidth);
                                           final top = min(_draggingRegion!.top, details.localPosition.dy / constraints.maxHeight);
@@ -617,15 +508,19 @@ class _YoloAppState extends State<YoloApp> {
                                       }
                                     }
                                   : null,
-                              onPanEnd: (_isRegionMode || _isManualBoxActive)
+                              onPanEnd: (_isRegionMode || _awaitingRegionSelection || _isManualBoxActive)
                                   ? (details) {
-                                      if (_isRegionMode) {
+                                      if (_isRegionMode || _awaitingRegionSelection) {
                                         if (_draggingRegion != null &&
                                             _draggingRegion!.width > 0.02 &&
                                             _draggingRegion!.height > 0.02) {
-                                          _runInferenceOnRegion(_draggingRegion!);
+                                          setState(() {
+                                            _savedRegions.add(_draggingRegion!);
+                                            _draggingRegion = null;
+                                          });
+                                        } else {
+                                          setState(() => _draggingRegion = null);
                                         }
-                                        setState(() => _draggingRegion = null);
                                       } else if (_isManualBoxActive) {
                                         setState(() => _activeHandleIndex = -1);
                                       }
@@ -655,11 +550,27 @@ class _YoloAppState extends State<YoloApp> {
                                     CustomPaint(
                                       painter: ManualBoxEditorPainter(_manualBoxRect!),
                                     ),
-                                  // Região de seleção (durante drag)
-                                  if (_draggingRegion != null && _isRegionMode)
+                                  // Região de seleção (regiões salvas + drag atual)
+                                  if ((_savedRegions.isNotEmpty || _draggingRegion != null) && (_isRegionMode || _awaitingRegionSelection))
                                     CustomPaint(
-                                      painter: _RegionSelectorPainter(_draggingRegion!),
+                                      painter: _RegionSelectorPainter(_savedRegions, _draggingRegion),
                                     ),
+                                  // X buttons for each saved region
+                                  if (_isRegionMode || _awaitingRegionSelection)
+                                    for (int i = 0; i < _savedRegions.length; i++)
+                                      Positioned(
+                                        left: (_savedRegions[i].right * constraints.maxWidth - 16).clamp(0.0, constraints.maxWidth - 28),
+                                        top: (_savedRegions[i].top * constraints.maxHeight - 16).clamp(0.0, constraints.maxHeight - 28),
+                                        child: GestureDetector(
+                                          onTap: () => setState(() => _savedRegions.removeAt(i)),
+                                          child: Container(
+                                            width: 28,
+                                            height: 28,
+                                            decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                                            child: const Icon(Icons.close, size: 16, color: Colors.white),
+                                          ),
+                                        ),
+                                      ),
                                   // Overlay de instrução
                                   if ((_awaitingRegionSelection || _isRegionMode) && !_isProcessing)
                                     Container(
@@ -743,37 +654,6 @@ class _YoloAppState extends State<YoloApp> {
                                         ),
                                       ),
                                     ),
-                                  // Manual box confirm/cancel buttons
-                                  if (_isManualBoxActive)
-                                    Positioned(
-                                      bottom: 16,
-                                      left: 0,
-                                      right: 0,
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          ElevatedButton.icon(
-                                            onPressed: _confirmManualBox,
-                                            icon: const Icon(Icons.check),
-                                            label: const Text('Confirmar'),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.green,
-                                              foregroundColor: Colors.white,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 16),
-                                          ElevatedButton.icon(
-                                            onPressed: _cancelManualBox,
-                                            icon: const Icon(Icons.close),
-                                            label: const Text('Cancelar'),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.red,
-                                              foregroundColor: Colors.white,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
                                 ],
                               ),
                             ),
@@ -833,16 +713,16 @@ class _YoloAppState extends State<YoloApp> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Botão de processar (só aparece quando aguardando região)
-                if (_imageFile != null && _awaitingRegionSelection && !_regionProcessed)
+                // Botão de processar (aparece quando aguardando região ou em modo região)
+                if (_imageFile != null && (_awaitingRegionSelection || _isRegionMode) && !_isProcessing)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: ElevatedButton.icon(
-                      onPressed: _draggingRegion != null ? _confirmRegionAndProcess : null,
+                      onPressed: _confirmRegionAndProcess,
                       icon: const Icon(Icons.check),
-                      label: const Text('Processar Área'),
+                      label: Text(_savedRegions.isEmpty ? 'Processar Imagem' : 'Processar ${_savedRegions.length} Área(s)'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _draggingRegion != null ? Colors.green : Colors.grey,
+                        backgroundColor: Colors.green,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -896,6 +776,39 @@ class _YoloAppState extends State<YoloApp> {
                       ],
                     ),
                   ),
+                // Botões de confirmar/cancelar caixa manual
+                if (_isManualBoxActive)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: _confirmManualBox,
+                          icon: const Icon(Icons.check),
+                          label: const Text('Confirmar'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        ElevatedButton.icon(
+                          onPressed: _cancelManualBox,
+                          icon: const Icon(Icons.close),
+                          label: const Text('Cancelar'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 // Botões de ação (linha inferior)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -921,66 +834,58 @@ class _YoloAppState extends State<YoloApp> {
   }
 }
 
-/// Painter para o retângulo de seleção de região
+/// Painter para os retângulos de seleção de região
 class _RegionSelectorPainter extends CustomPainter {
-  final Rect region; // Coordenadas normalizadas
+  final List<Rect> savedRegions;
+  final Rect? draggingRegion;
 
-  _RegionSelectorPainter(this.region);
+  _RegionSelectorPainter(this.savedRegions, this.draggingRegion);
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Converter para pixels
-    final rect = Rect.fromLTRB(
-      region.left * size.width,
-      region.top * size.height,
-      region.right * size.width,
-      region.bottom * size.height,
-    );
+    final allRegions = [
+      ...savedRegions,
+      ?draggingRegion,
+    ];
 
-    // Fundo semi-transparente fora da região
-    final outerPaint = Paint()
-      ..color = Colors.black54
-      ..style = PaintingStyle.fill;
+    for (int i = 0; i < allRegions.length; i++) {
+      final region = allRegions[i];
+      final rect = Rect.fromLTRB(
+        region.left * size.width,
+        region.top * size.height,
+        region.right * size.width,
+        region.bottom * size.height,
+      );
 
-    final path = Path()
-      ..addRect(Rect.fromLTWH(0, 0, size.width, size.height))
-      ..addRect(rect);
+      // Draw a colored border for each region (saved = solid, dragging = dashed-ish)
+      final isSaved = i < savedRegions.length;
+      final borderPaint = Paint()
+        ..color = isSaved ? Colors.blueAccent : Colors.blueAccent.withAlpha(180)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = isSaved ? 2.5 : 1.5;
 
-    canvas.drawPath(path, outerPaint);
+      canvas.drawRect(rect, borderPaint);
 
-    // Borda da região selecionada
-    final borderPaint = Paint()
-      ..color = Colors.blueAccent
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-
-    canvas.drawRect(rect, borderPaint);
-
-    // Cantos da seleção (handles visuais)
-    final handlePaint = Paint()..color = Colors.white;
-    const handleSize = 8.0;
-
-    canvas.drawRect(
-      Rect.fromLTWH(rect.left - handleSize / 2, rect.top - handleSize / 2, handleSize, handleSize),
-      handlePaint,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(rect.right - handleSize / 2, rect.top - handleSize / 2, handleSize, handleSize),
-      handlePaint,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(rect.left - handleSize / 2, rect.bottom - handleSize / 2, handleSize, handleSize),
-      handlePaint,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(rect.right - handleSize / 2, rect.bottom - handleSize / 2, handleSize, handleSize),
-      handlePaint,
-    );
+      // Corner handles
+      final handlePaint = Paint()..color = Colors.white;
+      const handleSize = 8.0;
+      for (final corner in [
+        Offset(rect.left, rect.top),
+        Offset(rect.right, rect.top),
+        Offset(rect.left, rect.bottom),
+        Offset(rect.right, rect.bottom),
+      ]) {
+        canvas.drawRect(
+          Rect.fromCenter(center: corner, width: handleSize, height: handleSize),
+          handlePaint,
+        );
+      }
+    }
   }
 
   @override
   bool shouldRepaint(covariant _RegionSelectorPainter oldDelegate) =>
-      oldDelegate.region != region;
+      oldDelegate.savedRegions != savedRegions || oldDelegate.draggingRegion != draggingRegion;
 }
 
 class _ActionButton extends StatelessWidget {

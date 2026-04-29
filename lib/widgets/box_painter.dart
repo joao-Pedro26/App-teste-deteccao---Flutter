@@ -39,9 +39,10 @@ class BoundingBoxPainter extends CustomPainter {
     final cx = (d.location.left + d.location.right) / 2 * size.width;
     final cy = (d.location.top + d.location.bottom) / 2 * size.height;
 
-    // Raio do círculo (~15% da menor dimensão da box ou mínimo 12px)
-    final boxMinDim = min(d.location.width, d.location.height) * size.shortestSide;
-    final radius = max(12.0, boxMinDim * 0.15);
+    // Raio do círculo (30% da menor dimensão da box em pixels, mínimo 8px)
+    final boxWidth = d.location.width * size.width;
+    final boxHeight = d.location.height * size.height;
+    final radius = max(8.0, min(boxWidth, boxHeight) * 0.3);
 
     // Círculo de fundo
     final circlePaint = Paint()
