@@ -77,6 +77,7 @@ class _YoloAppState extends State<YoloApp> {
     setState(() {
       _isProcessing = false; // Não está processando ainda
       _results = [];
+      _undoStack.clear();
       _imageFile = File(picked.path);
       _decodedImage = null;
       _awaitingRegionSelection = true; // Aguarda seleção
