@@ -688,7 +688,7 @@ class _YoloAppState extends State<YoloApp> {
                                         ),
                                       ),
                                     ),
-                                  if (_isEditMode && !_isProcessing)
+                                  if (_isEditMode && !_isProcessing && !_isManualBoxActive)
                                     Container(
                                       color: Colors.black26,
                                       child: Center(
