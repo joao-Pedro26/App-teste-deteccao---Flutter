@@ -142,6 +142,7 @@ class _YoloAppState extends State<YoloApp> {
 
       setState(() {
         _results = offsetDetections;
+        _undoStack.clear();
         _isProcessing = false;
         _regionProcessed = true;
       });
@@ -197,6 +198,7 @@ class _YoloAppState extends State<YoloApp> {
           setState(() {
             _decodedImage = decoded;
             _results = offsetDetections;
+            _undoStack.clear();
             _isProcessing = false;
             _regionProcessed = true;
           });
@@ -206,6 +208,7 @@ class _YoloAppState extends State<YoloApp> {
           setState(() {
             _decodedImage = decoded;
             _results = detections;
+            _undoStack.clear();
             _isProcessing = false;
             _regionProcessed = true;
           });
@@ -359,8 +362,8 @@ class _YoloAppState extends State<YoloApp> {
 
   void _undo() {
     if (_undoStack.isEmpty) return;
-    final action = _undoStack.removeLast();
     setState(() {
+      final action = _undoStack.removeLast();
       switch (action) {
         case _RemovedDetection(:final removed, :final originalIndex):
           final idx = originalIndex.clamp(0, _results.length);
