@@ -68,8 +68,12 @@ class _YoloAppState extends State<YoloApp> {
   }
 
   Future<void> _loadModel() async {
-    await _yoloService.init();
-    setState(() => _modelReady = true);
+    try {
+      await _yoloService.init();
+      setState(() => _modelReady = true);
+    } catch (e) {
+      debugPrint('[YOLO] Failed to load model: $e');
+    }
   }
 
   Future<void> _processImage(ImageSource source) async {
