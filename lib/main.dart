@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:image/image.dart' as img;
 import 'yolo_service.dart';
 import 'widgets/box_painter.dart';
+import 'widgets/manual_box_editor.dart';
 
 sealed class _EditAction {}
 
@@ -379,6 +380,64 @@ class _YoloAppState extends State<YoloApp> {
     });
   }
 
+  void _updateManualBoxCorner(int cornerIndex, Offset delta) {
+    if (_currentWidgetSize == null || _manualBoxRect == null) return;
+    final dx = delta.dx / _currentWidgetSize!.width;
+    final dy = delta.dy / _currentWidgetSize!.height;
+
+    double l = _manualBoxRect!.left;
+    double t = _manualBoxRect!.top;
+    double r = _manualBoxRect!.right;
+    double b = _manualBoxRect!.bottom;
+
+    const double minSize = 0.02;
+
+    switch (cornerIndex) {
+      case 0: // TL
+        l = (l + dx).clamp(0.0, r - minSize);
+        t = (t + dy).clamp(0.0, b - minSize);
+      case 1: // TR
+        r = (r + dx).clamp(l + minSize, 1.0);
+        t = (t + dy).clamp(0.0, b - minSize);
+      case 2: // BL
+        l = (l + dx).clamp(0.0, r - minSize);
+        b = (b + dy).clamp(t + minSize, 1.0);
+      case 3: // BR
+        r = (r + dx).clamp(l + minSize, 1.0);
+        b = (b + dy).clamp(t + minSize, 1.0);
+    }
+
+    setState(() => _manualBoxRect = Rect.fromLTRB(l, t, r, b));
+  }
+
+  void _confirmManualBox() {
+    if (_manualBoxRect == null) return;
+    final label = _yoloService.labels.isNotEmpty ? _yoloService.labels.first : 'objeto';
+    const classId = 0;
+    final newBox = Recognition(
+      classId,
+      label,
+      1.0,
+      _manualBoxRect!,
+    );
+    setState(() {
+      _results.add(newBox);
+      _undoStack.add(_AddedDetections([newBox]));
+      if (_undoStack.length > _maxUndoDepth) _undoStack.removeAt(0);
+      _manualBoxRect = null;
+      _isManualBoxActive = false;
+      _activeHandleIndex = -1;
+    });
+  }
+
+  void _cancelManualBox() {
+    setState(() {
+      _manualBoxRect = null;
+      _isManualBoxActive = false;
+      _activeHandleIndex = -1;
+    });
+  }
+
   /// Remover box existente
   void _removeBox(Recognition box) {
     final index = _results.indexOf(box);
@@ -500,7 +559,7 @@ class _YoloAppState extends State<YoloApp> {
                             // RenderTransform.hitTestChildren applies inverse transform automatically,
                             // so GestureDetector.localPosition inside this viewer is already in
                             // the child's coordinate space — no manual matrix inversion needed.
-                            panEnabled: !_isRegionMode,
+                            panEnabled: !_isRegionMode && !_isManualBoxActive,
                             scaleEnabled: true,
                             minScale: 1.0,
                             maxScale: 6.0,
@@ -508,41 +567,59 @@ class _YoloAppState extends State<YoloApp> {
                             child: AspectRatio(
                               aspectRatio: aspectRatio,
                               child: GestureDetector(
-                              onPanStart: _isRegionMode
+                              onPanStart: (_isRegionMode || _isManualBoxActive)
                                   ? (details) {
-                                      setState(() {
-                                        _draggingRegion = Rect.fromLTWH(
-                                          details.localPosition.dx / constraints.maxWidth,
-                                          details.localPosition.dy / constraints.maxHeight,
-                                          0, 0,
-                                        );
-                                      });
-                                    }
-                                  : null,
-                              onPanUpdate: _isRegionMode
-                                  ? (details) {
-                                      setState(() {
-                                        final left = min(_draggingRegion!.left, details.localPosition.dx / constraints.maxWidth);
-                                        final top = min(_draggingRegion!.top, details.localPosition.dy / constraints.maxHeight);
-                                        final right = max(_draggingRegion!.right, details.localPosition.dx / constraints.maxWidth);
-                                        final bottom = max(_draggingRegion!.bottom, details.localPosition.dy / constraints.maxHeight);
-                                        _draggingRegion = Rect.fromLTRB(
-                                          left.clamp(0.0, 1.0),
-                                          top.clamp(0.0, 1.0),
-                                          right.clamp(0.0, 1.0),
-                                          bottom.clamp(0.0, 1.0),
-                                        );
-                                      });
-                                    }
-                                  : null,
-                              onPanEnd: _isRegionMode
-                                  ? (details) {
-                                      if (_draggingRegion != null &&
-                                          _draggingRegion!.width > 0.02 &&
-                                          _draggingRegion!.height > 0.02) {
-                                        _runInferenceOnRegion(_draggingRegion!);
+                                      if (_isRegionMode) {
+                                        setState(() {
+                                          _draggingRegion = Rect.fromLTWH(
+                                            details.localPosition.dx / constraints.maxWidth,
+                                            details.localPosition.dy / constraints.maxHeight,
+                                            0, 0,
+                                          );
+                                        });
+                                      } else if (_isManualBoxActive && _manualBoxRect != null && _currentWidgetSize != null) {
+                                        setState(() {
+                                          _activeHandleIndex = ManualBoxEditorPainter.getHandleIndex(
+                                            details.localPosition,
+                                            _manualBoxRect!,
+                                            _currentWidgetSize!,
+                                          );
+                                        });
                                       }
-                                      setState(() => _draggingRegion = null);
+                                    }
+                                  : null,
+                              onPanUpdate: (_isRegionMode || _isManualBoxActive)
+                                  ? (details) {
+                                      if (_isRegionMode) {
+                                        setState(() {
+                                          final left = min(_draggingRegion!.left, details.localPosition.dx / constraints.maxWidth);
+                                          final top = min(_draggingRegion!.top, details.localPosition.dy / constraints.maxHeight);
+                                          final right = max(_draggingRegion!.right, details.localPosition.dx / constraints.maxWidth);
+                                          final bottom = max(_draggingRegion!.bottom, details.localPosition.dy / constraints.maxHeight);
+                                          _draggingRegion = Rect.fromLTRB(
+                                            left.clamp(0.0, 1.0),
+                                            top.clamp(0.0, 1.0),
+                                            right.clamp(0.0, 1.0),
+                                            bottom.clamp(0.0, 1.0),
+                                          );
+                                        });
+                                      } else if (_isManualBoxActive && _activeHandleIndex >= 0) {
+                                        _updateManualBoxCorner(_activeHandleIndex, details.delta);
+                                      }
+                                    }
+                                  : null,
+                              onPanEnd: (_isRegionMode || _isManualBoxActive)
+                                  ? (details) {
+                                      if (_isRegionMode) {
+                                        if (_draggingRegion != null &&
+                                            _draggingRegion!.width > 0.02 &&
+                                            _draggingRegion!.height > 0.02) {
+                                          _runInferenceOnRegion(_draggingRegion!);
+                                        }
+                                        setState(() => _draggingRegion = null);
+                                      } else if (_isManualBoxActive) {
+                                        setState(() => _activeHandleIndex = -1);
+                                      }
                                     }
                                   : null,
                               onTapUp: _isEditMode
@@ -563,6 +640,11 @@ class _YoloAppState extends State<YoloApp> {
                                   if (_results.isNotEmpty)
                                     CustomPaint(
                                       painter: BoundingBoxPainter(_results),
+                                    ),
+                                  // Manual box editor overlay
+                                  if (_isManualBoxActive && _manualBoxRect != null)
+                                    CustomPaint(
+                                      painter: ManualBoxEditorPainter(_manualBoxRect!),
                                     ),
                                   // Região de seleção (durante drag)
                                   if (_draggingRegion != null && _isRegionMode)
@@ -624,7 +706,7 @@ class _YoloAppState extends State<YoloApp> {
                                             ),
                                           ),
                                           child: const Text(
-                                            'Toque para adicionar/remover',
+                                            'Toque na box para remover • Toque vazio para re-detectar',
                                             style: TextStyle(
                                               color: Colors.white,
                                               fontSize: 16,
@@ -650,6 +732,37 @@ class _YoloAppState extends State<YoloApp> {
                                                     color: Colors.white)),
                                           ],
                                         ),
+                                      ),
+                                    ),
+                                  // Manual box confirm/cancel buttons
+                                  if (_isManualBoxActive)
+                                    Positioned(
+                                      bottom: 16,
+                                      left: 0,
+                                      right: 0,
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          ElevatedButton.icon(
+                                            onPressed: _confirmManualBox,
+                                            icon: const Icon(Icons.check),
+                                            label: const Text('Confirmar'),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.green,
+                                              foregroundColor: Colors.white,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 16),
+                                          ElevatedButton.icon(
+                                            onPressed: _cancelManualBox,
+                                            icon: const Icon(Icons.close),
+                                            label: const Text('Cancelar'),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.red,
+                                              foregroundColor: Colors.white,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                 ],
