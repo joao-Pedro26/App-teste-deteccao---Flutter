@@ -473,6 +473,9 @@ class _YoloAppState extends State<YoloApp> {
 
                           return InteractiveViewer(
                             transformationController: _transformationController,
+                            // RenderTransform.hitTestChildren applies inverse transform automatically,
+                            // so GestureDetector.localPosition inside this viewer is already in
+                            // the child's coordinate space — no manual matrix inversion needed.
                             panEnabled: !_isRegionMode,
                             scaleEnabled: true,
                             minScale: 1.0,
