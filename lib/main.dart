@@ -733,47 +733,42 @@ class _YoloAppState extends State<YoloApp> {
                   ),
           ),
 
-          // --- Painel de resultados ---
-          Container(
-            width: double.infinity,
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF16213E),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.blueAccent.withAlpha(102)), 
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Detecções',
-                  style: TextStyle(
-                      color: Colors.white54,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500),
+          // --- Detection card (only when image loaded) ---
+          if (_imageFile != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: colorScheme.outline),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  _getSummary(),
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                if (_results.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      'Total: ${_results.length} objeto(s)',
-                      style: const TextStyle(
-                          color: Colors.blueAccent, fontSize: 13),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'DETECÇÕES',
+                      style: AppTheme.labelStyle.copyWith(color: colorScheme.outlineVariant),
                     ),
-                  ),
-              ],
+                    const SizedBox(height: 4),
+                    Text(
+                      _getSummary(),
+                      style: AppTheme.valueStyle.copyWith(color: colorScheme.onSurface),
+                    ),
+                    if (_results.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Total: ${_results.length} objeto(s)',
+                          style: AppTheme.secondaryStyle.copyWith(color: colorScheme.onSurfaceVariant),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
-          ),
 
           // --- Botões ---
           Padding(
