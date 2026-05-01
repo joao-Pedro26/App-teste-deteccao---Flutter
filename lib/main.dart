@@ -631,7 +631,7 @@ class _YoloAppState extends State<YoloApp> {
                                     CustomPaint(
                                       painter: BoundingBoxPainter(
                                         _results,
-                                        isDarkMode: true, // TODO Task 10: wire widget.isDarkMode
+                                        isDarkMode: widget.isDarkMode,
                                       ),
                                     ),
                                   // Manual box editor overlay
@@ -643,43 +643,6 @@ class _YoloAppState extends State<YoloApp> {
                                   if ((_savedRegions.isNotEmpty || _draggingRegion != null) && (_isRegionMode || _awaitingRegionSelection))
                                     CustomPaint(
                                       painter: _RegionSelectorPainter(_savedRegions, _draggingRegion),
-                                    ),
-                                  // Overlay de instrução
-                                  if ((_awaitingRegionSelection || _isRegionMode) && !_isProcessing)
-                                    Container(
-                                      color: Colors.black26,
-                                      child: Center(
-                                        child: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                              decoration: BoxDecoration(
-                                                color: Colors.black87,
-                                                borderRadius: BorderRadius.circular(8),
-                                                border: Border.all(color: Colors.blueAccent, width: 2),
-                                              ),
-                                              child: Text(
-                                                _awaitingRegionSelection
-                                                    ? 'Arraste para selecionar área'
-                                                    : 'Solte para confirmar',
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ),
-                                            if (_awaitingRegionSelection) ...[
-                                              const SizedBox(height: 8),
-                                              const Text(
-                                                'ou toque em "Processar Área"',
-                                                style: TextStyle(color: Colors.white70, fontSize: 14),
-                                              ),
-                                            ],
-                                          ],
-                                        ),
-                                      ),
                                     ),
                                   // X buttons para excluir regiões (acima do overlay para receber toques)
                                   if (_isRegionMode || _awaitingRegionSelection)
@@ -698,10 +661,10 @@ class _YoloAppState extends State<YoloApp> {
                                             });
                                           }),
                                           child: Container(
-                                            width: 32,
-                                            height: 32,
-                                            decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                                            child: const Icon(Icons.close, size: 18, color: Colors.white),
+                                            width: 20,
+                                            height: 20,
+                                            decoration: const BoxDecoration(color: AppTheme.errorRed, shape: BoxShape.circle),
+                                            child: const Icon(Icons.close, size: 12, color: Colors.white),
                                           ),
                                         ),
                                       ),
@@ -990,8 +953,9 @@ class _RegionSelectorPainter extends CustomPainter {
 
       // Draw a colored border for each region (saved = solid, dragging = dashed-ish)
       final isSaved = i < savedRegions.length;
+      const emerald = Color(0xFF10B981);
       final borderPaint = Paint()
-        ..color = isSaved ? Colors.blueAccent : Colors.blueAccent.withAlpha(180)
+        ..color = isSaved ? emerald : emerald.withValues(alpha: 0.7)
         ..style = PaintingStyle.stroke
         ..strokeWidth = isSaved ? 2.5 : 1.5;
 
