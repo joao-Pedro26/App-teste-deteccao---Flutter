@@ -515,10 +515,17 @@ class _YoloAppState extends State<YoloApp> {
                   )
                 : Padding(
                     padding: const EdgeInsets.all(12.0),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      // LayoutBuilder para obter o tamanho real do widget
-                      child: LayoutBuilder(
+                    child: Container(
+                      decoration: _isEditMode
+                          ? BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: AppTheme.emerald, width: 2),
+                            )
+                          : null,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        // LayoutBuilder para obter o tamanho real do widget
+                        child: LayoutBuilder(
                         builder: (context, constraints) {
                           // Captura o tamanho atual do widget para conversão de coordenadas
                           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -698,29 +705,30 @@ class _YoloAppState extends State<YoloApp> {
                                           ),
                                         ),
                                       ),
-                                  if (_isEditMode && !_isProcessing && !_isManualBoxActive)
-                                    Container(
-                                      color: Colors.black26,
-                                      child: Center(
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 20,
-                                            vertical: 12,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.black87,
-                                            borderRadius: BorderRadius.circular(8),
-                                            border: Border.all(
-                                              color: Colors.orange,
-                                              width: 2,
+                                  if (_isEditMode && !_isManualBoxActive)
+                                    Positioned(
+                                      bottom: 8,
+                                      left: 0,
+                                      right: 0,
+                                      child: IgnorePointer(
+                                        child: Center(
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                            decoration: BoxDecoration(
+                                              borderRadius: BorderRadius.circular(20),
+                                              color: widget.isDarkMode
+                                                  ? Colors.black.withValues(alpha: 0.7)
+                                                  : Colors.white.withValues(alpha: 0.9),
+                                              border: Border.all(color: colorScheme.outline),
                                             ),
-                                          ),
-                                          child: const Text(
-                                            'Toque na box para remover • Toque vazio para re-detectar',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
+                                            child: Text(
+                                              '✏  TOQUE PARA EDITAR',
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w600,
+                                                color: colorScheme.outlineVariant,
+                                                letterSpacing: 0.5,
+                                              ),
                                             ),
                                           ),
                                         ),
@@ -753,6 +761,7 @@ class _YoloAppState extends State<YoloApp> {
                       ),
                     ),
                   ),
+                ),
           ),
 
           // --- Detection card (only when image loaded) ---
