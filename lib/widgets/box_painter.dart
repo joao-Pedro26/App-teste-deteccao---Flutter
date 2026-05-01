@@ -29,8 +29,9 @@ const List<Color> _boxColors = [
 
 class BoundingBoxPainter extends CustomPainter {
   final List<Recognition> detections;
+  final bool isDarkMode;
 
-  BoundingBoxPainter(this.detections);
+  BoundingBoxPainter(this.detections, {required this.isDarkMode});
 
   // Desenha círculo com número no centro da box
   void _drawNumberedCircle(
@@ -39,10 +40,19 @@ class BoundingBoxPainter extends CustomPainter {
     final cx = (d.location.left + d.location.right) / 2 * size.width;
     final cy = (d.location.top + d.location.bottom) / 2 * size.height;
 
-    // Raio do círculo (30% da menor dimensão da box em pixels, mínimo 8px)
+    // Raio: 30% da menor dimensão da box
     final boxWidth = d.location.width * size.width;
     final boxHeight = d.location.height * size.height;
-    final radius = max(8.0, min(boxWidth, boxHeight) * 0.3);
+    final radius = (min(boxWidth, boxHeight) * 0.30).clamp(5.0, 11.0);
+    final fontSize = (radius * 0.9).clamp(4.0, 9.0);
+
+    // Light mode: halo branco antes do círculo colorido
+    if (!isDarkMode) {
+      final haloPaint = Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(Offset(cx, cy), radius + 2, haloPaint);
+    }
 
     // Círculo de fundo
     final circlePaint = Paint()
@@ -54,15 +64,15 @@ class BoundingBoxPainter extends CustomPainter {
     final borderPaint = Paint()
       ..color = Colors.white
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
+      ..strokeWidth = 1.5;
     canvas.drawCircle(Offset(cx, cy), radius, borderPaint);
 
-    // Número centralizado
+    // Número centralizado — fonte proporcional ao raio
     final textSpan = TextSpan(
       text: '$number',
       style: TextStyle(
         color: Colors.white,
-        fontSize: max(10.0, radius * 0.8),
+        fontSize: fontSize,
         fontWeight: FontWeight.bold,
       ),
     );
@@ -101,17 +111,26 @@ class BoundingBoxPainter extends CustomPainter {
   // ── Box reto (modelos regulares) ─────────────────────────────────────────
   void _drawRegularBox(
       Canvas canvas, Size size, Recognition d, Color color) {
-    final boxPaint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-
     final rect = Rect.fromLTRB(
       d.location.left   * size.width,
       d.location.top    * size.height,
       d.location.right  * size.width,
       d.location.bottom * size.height,
     );
+
+    // Light mode: halo branco antes do contorno colorido
+    if (!isDarkMode) {
+      final haloPaint = Paint()
+        ..color = Colors.white.withValues(alpha: 0.7)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 5;
+      canvas.drawRect(rect, haloPaint);
+    }
+
+    final boxPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
 
     canvas.drawRect(rect, boxPaint);
     // _drawLabel(canvas, rect.left, rect.top, d, color);
@@ -121,11 +140,6 @@ class BoundingBoxPainter extends CustomPainter {
   // O ângulo θ do YOLOv8-OBB é definido em relação ao eixo X,
   // positivo no sentido horário, em radianos.
   void _drawOBB(Canvas canvas, Size size, Recognition d, Color color) {
-    final boxPaint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1; // Contorno fino
-
     // Centro do box em pixels
     final cx = (d.location.left + d.location.right)  / 2 * size.width;
     final cy = (d.location.top  + d.location.bottom) / 2 * size.height;
@@ -164,6 +178,20 @@ class BoundingBoxPainter extends CustomPainter {
       ..lineTo(rotated[2].dx, rotated[2].dy)
       ..lineTo(rotated[3].dx, rotated[3].dy)
       ..close();
+
+    // Light mode: halo branco antes do contorno colorido
+    if (!isDarkMode) {
+      final haloPaint = Paint()
+        ..color = Colors.white.withValues(alpha: 0.7)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 5;
+      canvas.drawPath(path, haloPaint);
+    }
+
+    final boxPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
 
     canvas.drawPath(path, boxPaint);
 
@@ -214,5 +242,6 @@ class BoundingBoxPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant BoundingBoxPainter oldDelegate) =>
-      oldDelegate.detections != detections;
+      oldDelegate.detections != detections ||
+      oldDelegate.isDarkMode != isDarkMode;
 }
