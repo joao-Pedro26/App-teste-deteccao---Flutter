@@ -399,6 +399,28 @@ class _YoloAppState extends State<YoloApp> {
     });
   }
 
+  ButtonStyle _ghostButtonStyle({
+    required bool isActive,
+    required ColorScheme colorScheme,
+    required bool isDarkMode,
+  }) {
+    if (isActive) {
+      return OutlinedButton.styleFrom(
+        side: const BorderSide(color: AppTheme.emerald, width: 1.5),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        minimumSize: const Size.fromHeight(40),
+        backgroundColor: isDarkMode ? AppTheme.activeDarkBg : AppTheme.activeLightBg,
+        foregroundColor: isDarkMode ? AppTheme.activeDarkText : AppTheme.activeLightText,
+      );
+    }
+    return OutlinedButton.styleFrom(
+      side: BorderSide(color: colorScheme.outline, width: 1.5),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      minimumSize: const Size.fromHeight(40),
+      foregroundColor: colorScheme.onSurfaceVariant,
+    );
+  }
+
   /// Handler para tap na imagem (modo edição)
   void _handleImageTap(Offset tapPosition) {
     if (!_isEditMode) return;
@@ -772,122 +794,159 @@ class _YoloAppState extends State<YoloApp> {
 
           // --- Botões ---
           Padding(
-            padding: const EdgeInsets.only(bottom: 36, top: 8),
+            padding: const EdgeInsets.only(bottom: 16),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Botão de processar (aparece quando aguardando região ou em modo região)
-                if (_imageFile != null && (_awaitingRegionSelection || _isRegionMode) && !_isProcessing)
+                // A) Manual box Confirm/Cancel (replaces toolbar + FABs)
+                if (_isManualBoxActive)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: ElevatedButton.icon(
-                      onPressed: _confirmRegionAndProcess,
-                      icon: const Icon(Icons.check),
-                      label: Text(_savedRegions.isEmpty ? 'Processar Imagem' : 'Processar ${_savedRegions.length} Área(s)'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _confirmManualBox,
+                            icon: const Icon(Icons.check),
+                            label: const Text('Confirmar'),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: AppTheme.emerald, width: 1.5),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              minimumSize: const Size.fromHeight(40),
+                              backgroundColor: widget.isDarkMode ? AppTheme.activeDarkBg : AppTheme.activeLightBg,
+                              foregroundColor: widget.isDarkMode ? AppTheme.activeDarkText : AppTheme.activeLightText,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _cancelManualBox,
+                            icon: const Icon(Icons.close),
+                            label: const Text('Cancelar'),
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: AppTheme.errorRed, width: 1.5),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              minimumSize: const Size.fromHeight(40),
+                              backgroundColor: AppTheme.errorRed.withValues(alpha: 0.10),
+                              foregroundColor: AppTheme.errorRed,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                // B) Detectar button (process button)
+                if (!_isManualBoxActive && _imageFile != null && (_awaitingRegionSelection || _isRegionMode) && !_isProcessing)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        onPressed: _confirmRegionAndProcess,
+                        icon: const Icon(Icons.check),
+                        label: Text(
+                          _savedRegions.isEmpty ? 'Detectar' : 'Detectar ${_savedRegions.length} Área(s)',
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.emerald,
+                          foregroundColor: Colors.white,
+                          textStyle: AppTheme.buttonStyle,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
+                        ),
                       ),
                     ),
                   ),
 
-                // Botões de modo (linha superior)
-                if (_imageFile != null && !_awaitingRegionSelection)
+                // C) Ghost toolbar
+                if (_imageFile != null && !_isManualBoxActive && !_awaitingRegionSelection && !_isRegionMode)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        _ToggleActionButton(
-                          icon: Icons.crop_free,
-                          label: 'Selecionar Área',
-                          isActive: _isRegionMode,
-                          onTap: () {
-                            setState(() {
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => setState(() {
                               _isRegionMode = !_isRegionMode;
                               if (_isRegionMode) _isEditMode = false;
-                            });
-                          },
+                            }),
+                            icon: const Icon(Icons.crop_free, size: 18),
+                            label: const Text('Selecionar Área'),
+                            style: _ghostButtonStyle(isActive: _isRegionMode, colorScheme: colorScheme, isDarkMode: widget.isDarkMode),
+                          ),
                         ),
-                        _ToggleActionButton(
-                          icon: Icons.edit,
-                          label: 'Editar',
-                          isActive: _isEditMode,
-                          onTap: () {
-                            setState(() {
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => setState(() {
                               _isEditMode = !_isEditMode;
                               if (_isEditMode) _isRegionMode = false;
-                            });
-                          },
+                            }),
+                            icon: const Icon(Icons.edit, size: 18),
+                            label: const Text('Editar'),
+                            style: _ghostButtonStyle(isActive: _isEditMode, colorScheme: colorScheme, isDarkMode: widget.isDarkMode),
+                          ),
                         ),
-                        if (_isEditMode)
-                          IconButton(
-                            icon: Icon(
-                              Icons.undo,
-                              color: _undoStack.isNotEmpty ? Colors.white : Colors.white30,
-                            ),
-                            onPressed: _undoStack.isNotEmpty ? _undo : null,
-                            tooltip: 'Desfazer',
-                            style: IconButton.styleFrom(
-                              backgroundColor: _undoStack.isNotEmpty
-                                  ? Colors.blueAccent.withAlpha(77)
-                                  : Colors.transparent,
+                        if (_isEditMode && _undoStack.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: SizedBox(
+                              width: 40,
+                              height: 40,
+                              child: OutlinedButton(
+                                onPressed: _undo,
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(color: colorScheme.outline, width: 1.5),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  padding: EdgeInsets.zero,
+                                  foregroundColor: colorScheme.onSurfaceVariant,
+                                ),
+                                child: const Icon(Icons.undo, size: 18),
+                              ),
                             ),
                           ),
                       ],
                     ),
                   ),
-                // Botões de confirmar/cancelar caixa manual
-                if (_isManualBoxActive)
+
+                // D) FAB row
+                if (!_isManualBoxActive)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        ElevatedButton.icon(
-                          onPressed: _confirmManualBox,
-                          icon: const Icon(Icons.check),
-                          label: const Text('Confirmar'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () => _processImage(ImageSource.gallery),
+                            icon: const Icon(Icons.photo_library_rounded),
+                            label: Text('Galeria', style: AppTheme.buttonStyle),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.emerald,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size.fromHeight(48),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
+                            ),
                           ),
                         ),
-                        const SizedBox(width: 16),
-                        ElevatedButton.icon(
-                          onPressed: _cancelManualBox,
-                          icon: const Icon(Icons.close),
-                          label: const Text('Cancelar'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () => _processImage(ImageSource.camera),
+                            icon: const Icon(Icons.camera_alt_rounded),
+                            label: Text('Câmera', style: AppTheme.buttonStyle),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.emerald,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size.fromHeight(48),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                // Botões de ação (linha inferior)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _ActionButton(
-                      icon: Icons.photo_library_rounded,
-                      label: 'Galeria',
-                      onTap: () => _processImage(ImageSource.gallery),
-                    ),
-                    _ActionButton(
-                      icon: Icons.camera_alt_rounded,
-                      label: 'Câmera',
-                      onTap: () => _processImage(ImageSource.camera),
-                    ),
-                  ],
-                ),
               ],
             ),
           ),
@@ -949,62 +1008,4 @@ class _RegionSelectorPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _RegionSelectorPainter oldDelegate) =>
       oldDelegate.savedRegions != savedRegions || oldDelegate.draggingRegion != draggingRegion;
-}
-
-class _ActionButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  const _ActionButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ElevatedButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon),
-      label: Text(label),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.blueAccent,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-  }
-}
-
-/// Botão de toggle para modos especiais
-class _ToggleActionButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  final bool isActive;
-
-  const _ToggleActionButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.isActive = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ElevatedButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon, color: isActive ? Colors.yellow : null),
-      label: Text(label, style: TextStyle(fontWeight: isActive ? FontWeight.bold : null)),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: isActive ? Colors.orange : Colors.blueAccent,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        elevation: isActive ? 4 : 2,
-      ),
-    );
-  }
 }
