@@ -433,7 +433,7 @@ class _YoloAppState extends State<YoloApp> {
         SnackBar(
           content: Text('${hitBox.label} removido'),
           duration: const Duration(seconds: 1),
-          backgroundColor: Colors.orange,
+          backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
     } else {
@@ -953,9 +953,8 @@ class _RegionSelectorPainter extends CustomPainter {
 
       // Draw a colored border for each region (saved = solid, dragging = dashed-ish)
       final isSaved = i < savedRegions.length;
-      const emerald = Color(0xFF10B981);
       final borderPaint = Paint()
-        ..color = isSaved ? emerald : emerald.withValues(alpha: 0.7)
+        ..color = isSaved ? AppTheme.emerald : AppTheme.emerald.withValues(alpha: 0.7)
         ..style = PaintingStyle.stroke
         ..strokeWidth = isSaved ? 2.5 : 1.5;
 
