@@ -11,7 +11,7 @@ void main() {
     ));
     await tester.pump();
 
-    expect(find.byIcon(Icons.image_search), findsOneWidget);
+    expect(find.byIcon(Icons.image_search_outlined), findsOneWidget);
     expect(find.text('Selecione uma imagem para começar'), findsOneWidget);
   });
 
