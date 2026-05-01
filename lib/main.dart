@@ -477,15 +477,16 @@ class _YoloAppState extends State<YoloApp> {
           // --- Área da imagem ---
           Expanded(
             child: _imageFile == null
-                ? const Center(
+                ? Center(
                     child: Column(
-                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.image_search, size: 72, color: Colors.white24),
-                        SizedBox(height: 16),
+                        Icon(Icons.image_search_outlined, size: 64, color: colorScheme.outlineVariant),
+                        const SizedBox(height: 16),
                         Text(
                           'Selecione uma imagem para começar',
-                          style: TextStyle(color: Colors.white38, fontSize: 16),
+                          style: AppTheme.secondaryStyle.copyWith(color: colorScheme.onSurfaceVariant),
+                          textAlign: TextAlign.center,
                         ),
                       ],
                     ),
