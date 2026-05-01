@@ -644,6 +644,48 @@ class _YoloAppState extends State<YoloApp> {
                                     CustomPaint(
                                       painter: _RegionSelectorPainter(_savedRegions, _draggingRegion),
                                     ),
+                                  // Region selection instruction chip
+                                  if ((_awaitingRegionSelection || _isRegionMode) && !_isProcessing)
+                                    Positioned(
+                                      bottom: 8,
+                                      left: 0,
+                                      right: 0,
+                                      child: Center(
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                          decoration: BoxDecoration(
+                                            color: widget.isDarkMode
+                                                ? Colors.black.withValues(alpha: 0.72)
+                                                : Colors.white.withValues(alpha: 0.90),
+                                            borderRadius: BorderRadius.circular(20),
+                                            border: Border.all(color: AppTheme.emerald, width: 1.5),
+                                          ),
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(
+                                                _awaitingRegionSelection
+                                                    ? 'Arraste para selecionar área'
+                                                    : 'Solte para confirmar',
+                                                style: AppTheme.buttonStyle.copyWith(
+                                                  color: Theme.of(context).colorScheme.onSurface,
+                                                ),
+                                              ),
+                                              if (_awaitingRegionSelection)
+                                                Padding(
+                                                  padding: const EdgeInsets.only(top: 4),
+                                                  child: Text(
+                                                    'ou toque em "Detectar"',
+                                                    style: AppTheme.secondaryStyle.copyWith(
+                                                      color: Theme.of(context).colorScheme.secondary,
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
                                   // X buttons para excluir regiões (acima do overlay para receber toques)
                                   if (_isRegionMode || _awaitingRegionSelection)
                                     for (int i = 0; i < _savedRegions.length; i++)
