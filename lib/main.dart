@@ -6,6 +6,7 @@ import 'package:image/image.dart' as img;
 import 'yolo_service.dart';
 import 'widgets/box_painter.dart';
 import 'widgets/manual_box_editor.dart';
+import 'theme/app_theme.dart';
 
 sealed class _EditAction {}
 
@@ -20,13 +21,49 @@ class _RemovedDetection extends _EditAction {
   _RemovedDetection(this.removed, this.originalIndex);
 }
 
-void main() => runApp(const MaterialApp(
-      home: YoloApp(),
+void main() => runApp(const FiscalizaApp());
+
+class FiscalizaApp extends StatefulWidget {
+  const FiscalizaApp({super.key});
+
+  @override
+  State<FiscalizaApp> createState() => _FiscalizaAppState();
+}
+
+class _FiscalizaAppState extends State<FiscalizaApp> {
+  ThemeMode _themeMode = ThemeMode.system;
+
+  void toggleTheme() {
+    setState(() {
+      _themeMode =
+          _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: _themeMode,
       debugShowCheckedModeBanner: false,
-    ));
+      home: YoloApp(
+        onToggleTheme: toggleTheme,
+        isDarkMode: _themeMode == ThemeMode.dark,
+      ),
+    );
+  }
+}
 
 class YoloApp extends StatefulWidget {
-  const YoloApp({super.key});
+  final VoidCallback onToggleTheme;
+  final bool isDarkMode;
+
+  const YoloApp({
+    super.key,
+    required this.onToggleTheme,
+    required this.isDarkMode,
+  });
 
   @override
   State<YoloApp> createState() => _YoloAppState();
@@ -543,7 +580,10 @@ class _YoloAppState extends State<YoloApp> {
                                   // Bounding Boxes
                                   if (_results.isNotEmpty)
                                     CustomPaint(
-                                      painter: BoundingBoxPainter(_results),
+                                      painter: BoundingBoxPainter(
+                                        _results,
+                                        isDarkMode: true, // TODO Task 10: wire widget.isDarkMode
+                                      ),
                                     ),
                                   // Manual box editor overlay
                                   if (_isManualBoxActive && _manualBoxRect != null)
@@ -555,22 +595,6 @@ class _YoloAppState extends State<YoloApp> {
                                     CustomPaint(
                                       painter: _RegionSelectorPainter(_savedRegions, _draggingRegion),
                                     ),
-                                  // X buttons for each saved region
-                                  if (_isRegionMode || _awaitingRegionSelection)
-                                    for (int i = 0; i < _savedRegions.length; i++)
-                                      Positioned(
-                                        left: (_savedRegions[i].right * constraints.maxWidth - 16).clamp(0.0, constraints.maxWidth - 28),
-                                        top: (_savedRegions[i].top * constraints.maxHeight - 16).clamp(0.0, constraints.maxHeight - 28),
-                                        child: GestureDetector(
-                                          onTap: () => setState(() => _savedRegions.removeAt(i)),
-                                          child: Container(
-                                            width: 28,
-                                            height: 28,
-                                            decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                                            child: const Icon(Icons.close, size: 16, color: Colors.white),
-                                          ),
-                                        ),
-                                      ),
                                   // Overlay de instrução
                                   if ((_awaitingRegionSelection || _isRegionMode) && !_isProcessing)
                                     Container(
@@ -608,6 +632,30 @@ class _YoloAppState extends State<YoloApp> {
                                         ),
                                       ),
                                     ),
+                                  // X buttons para excluir regiões (acima do overlay para receber toques)
+                                  if (_isRegionMode || _awaitingRegionSelection)
+                                    for (int i = 0; i < _savedRegions.length; i++)
+                                      Positioned(
+                                        left: (_savedRegions[i].right * constraints.maxWidth - 16).clamp(0.0, constraints.maxWidth - 28),
+                                        top: (_savedRegions[i].top * constraints.maxHeight - 16).clamp(0.0, constraints.maxHeight - 28),
+                                        child: GestureDetector(
+                                          behavior: HitTestBehavior.opaque,
+                                          onTap: () => setState(() {
+                                            final region = _savedRegions.removeAt(i);
+                                            _results.removeWhere((r) {
+                                              final cx = (r.location.left + r.location.right) / 2;
+                                              final cy = (r.location.top + r.location.bottom) / 2;
+                                              return region.contains(Offset(cx, cy));
+                                            });
+                                          }),
+                                          child: Container(
+                                            width: 32,
+                                            height: 32,
+                                            decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                                            child: const Icon(Icons.close, size: 18, color: Colors.white),
+                                          ),
+                                        ),
+                                      ),
                                   if (_isEditMode && !_isProcessing && !_isManualBoxActive)
                                     Container(
                                       color: Colors.black26,
