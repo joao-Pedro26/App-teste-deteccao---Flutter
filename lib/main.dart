@@ -426,31 +426,50 @@ class _YoloAppState extends State<YoloApp> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A2E),
       appBar: AppBar(
-        title: const Text('YOLOv8 Detector'),
-        backgroundColor: const Color(0xFF16213E),
-        foregroundColor: Colors.white,
+        title: Text('Fiscaliza', style: AppTheme.titleStyle.copyWith(color: colorScheme.onSurface)),
         elevation: 0,
+        scrolledUnderElevation: 0,
+        backgroundColor: colorScheme.surface,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Divider(height: 1, thickness: 1, color: colorScheme.outline),
+        ),
         actions: [
-          if (!_modelReady)
-            const Padding(
-              padding: EdgeInsets.all(12.0),
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              ),
+          // Theme toggle button
+          IconButton(
+            icon: Icon(
+              widget.isDarkMode ? Icons.light_mode : Icons.dark_mode,
+              color: colorScheme.onSurfaceVariant,
             ),
-          if (_modelReady)
-            const Padding(
-              padding: EdgeInsets.all(14.0),
-              child: Icon(Icons.check_circle, color: Colors.greenAccent, size: 22),
-            ),
+            onPressed: widget.onToggleTheme,
+            tooltip: widget.isDarkMode ? 'Modo claro' : 'Modo escuro',
+          ),
+          // Model status indicator
+          Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: _modelError
+                ? Icon(Icons.error_outline, color: AppTheme.errorRed, size: 20)
+                : !_modelReady
+                    ? SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      )
+                    : Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: AppTheme.emerald,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+          ),
         ],
       ),
       body: Column(
