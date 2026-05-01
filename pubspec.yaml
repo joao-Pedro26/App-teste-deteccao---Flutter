@@ -14,6 +14,7 @@ dependencies:
   tflite_flutter: ^0.12.1
   image: ^4.0.0
   cupertino_icons: ^1.0.8
+  google_fonts: ^6.2.1
 
 dev_dependencies:
   flutter_test:
@@ -24,5 +25,5 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/yolov8n_float32.tflite
+    - assets/my_model_float32.tflite
     - assets/labels.txt
