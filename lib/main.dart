@@ -96,20 +96,21 @@ class YoloApp extends StatefulWidget {
 
 class _YoloAppState extends State<YoloApp> {
   final YoloService _yoloService = YoloService();
-  File? _imageFile;
-  img.Image? _decodedImage; // Guarda a imagem decodificada para obter dimensões reais
-  List<Recognition> _results = [];
+
+  // Per-photo state lives in PhotoSession; _current is the active one
+  final List<PhotoSession> _photos = [];
+  int _currentIndex = 0;
+  PhotoSession? get _current => _photos.isEmpty ? null : _photos[_currentIndex];
+
   bool _isProcessing = false;
   bool _modelReady = false;
   bool _modelError = false;
 
-  // Novos estados para interação
-  bool _isRegionMode = false;      // Modo de seleção por região
-  bool _isEditMode = false;        // Modo de edição de boxes
-  Rect? _draggingRegion;           // Retângulo sendo desenhado (coordenadas normalizadas)
-  Size? _currentWidgetSize;        // Tamanho atual do widget para conversão de coordenadas
-  bool _awaitingRegionSelection = false;  // Aguarda seleção de região antes de processar
-  final List<_EditAction> _undoStack = [];
+  // Global interaction state (not per-photo)
+  bool _isRegionMode = false;
+  bool _isEditMode = false;
+  Rect? _draggingRegion;
+  Size? _currentWidgetSize;
   static const int _maxUndoDepth = 20;
   final TransformationController _transformationController = TransformationController();
 
@@ -117,7 +118,6 @@ class _YoloAppState extends State<YoloApp> {
   Recognition? _draggingOriginalDetection;
   Offset? _draggingCenterOverride;
   bool _significantDrag = false;
-  List<Rect> _savedRegions = [];
 
   @override
   void initState() {
@@ -159,14 +159,12 @@ class _YoloAppState extends State<YoloApp> {
     if (picked == null) return;
 
     setState(() {
-      _isProcessing = false; // Não está processando ainda
-      _results = [];
-      _undoStack.clear();
-      _imageFile = File(picked.path);
-      _decodedImage = null;
-      _awaitingRegionSelection = true; // Aguarda seleção
-      _savedRegions = [];
+      _isProcessing = false;
+      _isEditMode = false;
+      _isRegionMode = false;
       _transformationController.value = Matrix4.identity();
+      _photos.add(PhotoSession(imageFile: File(picked.path)));
+      _currentIndex = _photos.length - 1;
     });
   }
 
@@ -178,10 +176,11 @@ class _YoloAppState extends State<YoloApp> {
   /// Monta o texto de resumo com contagem por classe
   String _getSummary() {
     if (_isProcessing) return 'Processando...';
-    if (_results.isEmpty) return 'Nenhum objeto detectado.';
+    final results = _current?.results ?? [];
+    if (results.isEmpty) return 'Nenhum objeto detectado.';
 
     final Map<String, int> counts = {};
-    for (var r in _results) {
+    for (var r in results) {
       counts[r.label] = (counts[r.label] ?? 0) + 1;
     }
     return counts.entries.map((e) => '${e.value}x ${e.key}').join('  |  ');
@@ -189,22 +188,22 @@ class _YoloAppState extends State<YoloApp> {
 
   /// Confirma as regiões selecionadas e processa
   Future<void> _confirmRegionAndProcess() async {
-    if (_imageFile == null) return;
+    if (_current == null) return;
 
     setState(() {
-      _awaitingRegionSelection = false;
+      _current!.awaitingRegionSelection = false;
       _isRegionMode = false;
       _isProcessing = true;
       _draggingRegion = null;
     });
 
     try {
-      final bytes = await _imageFile!.readAsBytes();
+      final bytes = await _current!.imageFile.readAsBytes();
       final decoded = img.decodeImage(bytes);
 
       if (decoded != null) {
-        final regions = _savedRegions.isNotEmpty
-            ? List<Rect>.from(_savedRegions)
+        final regions = _current!.savedRegions.isNotEmpty
+            ? List<Rect>.from(_current!.savedRegions)
             : [Rect.fromLTWH(0, 0, 1, 1)];
 
         final List<Recognition> allDetections = [];
@@ -244,9 +243,9 @@ class _YoloAppState extends State<YoloApp> {
         }
 
         setState(() {
-          _decodedImage = decoded;
-          _results = allDetections;
-          _undoStack.clear();
+          _current!.decodedImage = decoded;
+          _current!.results = allDetections;
+          _current!.undoStack.clear();
           _isProcessing = false;
         });
       }
@@ -257,9 +256,10 @@ class _YoloAppState extends State<YoloApp> {
   }
 
   int? _hitTestCircle(Offset localPosition, {double extraPadding = 16.0}) {
-    if (_currentWidgetSize == null || _results.isEmpty) return null;
-    for (int i = _results.length - 1; i >= 0; i--) {
-      final d = _results[i];
+    if (_currentWidgetSize == null || _current == null) return null;
+    final results = _current!.results;
+    for (int i = results.length - 1; i >= 0; i--) {
+      final d = results[i];
       final cx = (d.location.left + d.location.right) / 2 * _currentWidgetSize!.width;
       final cy = (d.location.top + d.location.bottom) / 2 * _currentWidgetSize!.height;
       final bw = d.location.width * _currentWidgetSize!.width;
@@ -274,14 +274,15 @@ class _YoloAppState extends State<YoloApp> {
   }
 
   Size _averageDetectionSize() {
-    if (_results.isEmpty) return const Size(0.06, 0.06);
-    final avgW = _results.map((r) => r.location.width).reduce((a, b) => a + b) / _results.length;
-    final avgH = _results.map((r) => r.location.height).reduce((a, b) => a + b) / _results.length;
+    final results = _current?.results ?? [];
+    if (results.isEmpty) return const Size(0.06, 0.06);
+    final avgW = results.map((r) => r.location.width).reduce((a, b) => a + b) / results.length;
+    final avgH = results.map((r) => r.location.height).reduce((a, b) => a + b) / results.length;
     return Size(avgW, avgH);
   }
 
   void _createCircleAtPosition(Offset localPosition) {
-    if (_currentWidgetSize == null) return;
+    if (_currentWidgetSize == null || _current == null) return;
     final center = Offset(
       (localPosition.dx / _currentWidgetSize!.width).clamp(0.0, 1.0),
       (localPosition.dy / _currentWidgetSize!.height).clamp(0.0, 1.0),
@@ -294,15 +295,16 @@ class _YoloAppState extends State<YoloApp> {
       Rect.fromCenter(center: center, width: s.width.clamp(0.01, 0.5), height: s.height.clamp(0.01, 0.5)),
     );
     setState(() {
-      _results.add(newDet);
-      _undoStack.add(_AddedDetections([newDet]));
-      if (_undoStack.length > _maxUndoDepth) _undoStack.removeAt(0);
+      _current!.results.add(newDet);
+      _current!.undoStack.add(_AddedDetections([newDet]));
+      if (_current!.undoStack.length > _maxUndoDepth) _current!.undoStack.removeAt(0);
     });
   }
 
   List<Recognition> get _resultsForDisplay {
-    if (_draggingCircleIndex == null || _draggingCenterOverride == null) return _results;
-    final list = List<Recognition>.from(_results);
+    final results = _current?.results ?? [];
+    if (_draggingCircleIndex == null || _draggingCenterOverride == null) return results;
+    final list = List<Recognition>.from(results);
     final old = list[_draggingCircleIndex!];
     list[_draggingCircleIndex!] = Recognition(
       old.classId, old.label, old.score,
@@ -314,27 +316,28 @@ class _YoloAppState extends State<YoloApp> {
 
   /// Remover box existente
   void _removeBox(Recognition box) {
-    final index = _results.indexOf(box);
+    if (_current == null) return;
+    final index = _current!.results.indexOf(box);
     setState(() {
-      _results.remove(box);
-      _undoStack.add(_RemovedDetection(box, index));
-      if (_undoStack.length > _maxUndoDepth) _undoStack.removeAt(0);
+      _current!.results.remove(box);
+      _current!.undoStack.add(_RemovedDetection(box, index));
+      if (_current!.undoStack.length > _maxUndoDepth) _current!.undoStack.removeAt(0);
     });
   }
 
   void _undo() {
-    if (_undoStack.isEmpty) return;
+    if (_current == null || _current!.undoStack.isEmpty) return;
     setState(() {
-      final action = _undoStack.removeLast();
+      final action = _current!.undoStack.removeLast();
       switch (action) {
         case _RemovedDetection(:final removed, :final originalIndex):
-          final idx = originalIndex.clamp(0, _results.length);
-          _results.insert(idx, removed);
+          final idx = originalIndex.clamp(0, _current!.results.length);
+          _current!.results.insert(idx, removed);
         case _AddedDetections(:final added):
-          _results.removeWhere((r) => added.contains(r));
+          _current!.results.removeWhere((r) => added.contains(r));
         case _MovedDetection(:final oldDetection, :final newDetection):
-          final idx = _results.indexOf(newDetection);
-          if (idx >= 0) _results[idx] = oldDetection;
+          final idx = _current!.results.indexOf(newDetection);
+          if (idx >= 0) _current!.results[idx] = oldDetection;
       }
     });
   }
@@ -413,7 +416,7 @@ class _YoloAppState extends State<YoloApp> {
         children: [
           // --- Área da imagem ---
           Expanded(
-            child: _imageFile == null
+            child: _current == null
                 ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -450,9 +453,9 @@ class _YoloAppState extends State<YoloApp> {
                           // Calcula o aspect ratio real da imagem original
                           // para que as bounding boxes se alinhem corretamente
                           double aspectRatio = 1.0;
-                          if (_decodedImage != null) {
+                          if (_current?.decodedImage != null) {
                             aspectRatio =
-                                _decodedImage!.width / _decodedImage!.height;
+                                _current!.decodedImage!.width / _current!.decodedImage!.height;
                           }
 
                           return InteractiveViewer(
@@ -460,7 +463,7 @@ class _YoloAppState extends State<YoloApp> {
                             // RenderTransform.hitTestChildren applies inverse transform automatically,
                             // so GestureDetector.localPosition inside this viewer is already in
                             // the child's coordinate space — no manual matrix inversion needed.
-                            panEnabled: !_isRegionMode && !_awaitingRegionSelection && !_isEditMode,
+                            panEnabled: !_isRegionMode && !(_current?.awaitingRegionSelection ?? false) && !_isEditMode,
                             scaleEnabled: true,
                             minScale: 1.0,
                             maxScale: 6.0,
@@ -472,7 +475,7 @@ class _YoloAppState extends State<YoloApp> {
                                   ? (details) {
                                       final hitIdx = _hitTestCircle(details.localPosition, extraPadding: 0);
                                       if (hitIdx != null) {
-                                        final removed = _results[hitIdx];
+                                        final removed = _current!.results[hitIdx];
                                         _removeBox(removed);
                                         ScaffoldMessenger.of(context).showSnackBar(
                                           SnackBar(
@@ -485,9 +488,9 @@ class _YoloAppState extends State<YoloApp> {
                                       }
                                     }
                                   : null,
-                              onPanStart: (_isRegionMode || _awaitingRegionSelection || _isEditMode)
+                              onPanStart: (_isRegionMode || (_current?.awaitingRegionSelection ?? false) || _isEditMode)
                                   ? (details) {
-                                      if (_isRegionMode || _awaitingRegionSelection) {
+                                      if (_isRegionMode || (_current?.awaitingRegionSelection ?? false)) {
                                         setState(() {
                                           _draggingRegion = Rect.fromLTWH(
                                             details.localPosition.dx / constraints.maxWidth,
@@ -500,19 +503,19 @@ class _YoloAppState extends State<YoloApp> {
                                         if (hitIdx != null) {
                                           setState(() {
                                             _draggingCircleIndex = hitIdx;
-                                            _draggingOriginalDetection = _results[hitIdx];
+                                            _draggingOriginalDetection = _current!.results[hitIdx];
                                             _draggingCenterOverride = Offset(
-                                              _results[hitIdx].location.center.dx,
-                                              _results[hitIdx].location.center.dy,
+                                              _current!.results[hitIdx].location.center.dx,
+                                              _current!.results[hitIdx].location.center.dy,
                                             );
                                           });
                                         }
                                       }
                                     }
                                   : null,
-                              onPanUpdate: (_isRegionMode || _awaitingRegionSelection || _isEditMode)
+                              onPanUpdate: (_isRegionMode || (_current?.awaitingRegionSelection ?? false) || _isEditMode)
                                   ? (details) {
-                                      if (_isRegionMode || _awaitingRegionSelection) {
+                                      if (_isRegionMode || (_current?.awaitingRegionSelection ?? false)) {
                                         setState(() {
                                           final left = min(_draggingRegion!.left, details.localPosition.dx / constraints.maxWidth);
                                           final top = min(_draggingRegion!.top, details.localPosition.dy / constraints.maxHeight);
@@ -538,14 +541,14 @@ class _YoloAppState extends State<YoloApp> {
                                       }
                                     }
                                   : null,
-                              onPanEnd: (_isRegionMode || _awaitingRegionSelection || _isEditMode)
+                              onPanEnd: (_isRegionMode || (_current?.awaitingRegionSelection ?? false) || _isEditMode)
                                   ? (details) {
-                                      if (_isRegionMode || _awaitingRegionSelection) {
+                                      if (_isRegionMode || (_current?.awaitingRegionSelection ?? false)) {
                                         if (_draggingRegion != null &&
                                             _draggingRegion!.width > 0.02 &&
                                             _draggingRegion!.height > 0.02) {
                                           setState(() {
-                                            _savedRegions.add(_draggingRegion!);
+                                            _current!.savedRegions.add(_draggingRegion!);
                                             _draggingRegion = null;
                                           });
                                         } else {
@@ -559,9 +562,9 @@ class _YoloAppState extends State<YoloApp> {
                                           angle: old.angle,
                                         );
                                         setState(() {
-                                          _results[_draggingCircleIndex!] = newDet;
-                                          _undoStack.add(_MovedDetection(old, newDet));
-                                          if (_undoStack.length > _maxUndoDepth) _undoStack.removeAt(0);
+                                          _current!.results[_draggingCircleIndex!] = newDet;
+                                          _current!.undoStack.add(_MovedDetection(old, newDet));
+                                          if (_current!.undoStack.length > _maxUndoDepth) _current!.undoStack.removeAt(0);
                                         });
                                       }
                                       if (_isEditMode) {
@@ -574,7 +577,7 @@ class _YoloAppState extends State<YoloApp> {
                                       }
                                     }
                                   : null,
-                              onDoubleTap: _awaitingRegionSelection && _draggingRegion != null
+                              onDoubleTap: (_current?.awaitingRegionSelection ?? false) && _draggingRegion != null
                                   ? _confirmRegionAndProcess
                                   : null,
                               child: Stack(
@@ -582,11 +585,11 @@ class _YoloAppState extends State<YoloApp> {
                                 children: [
                                   // Imagem de fundo
                                   Image.file(
-                                    _imageFile!,
+                                    _current!.imageFile,
                                     fit: BoxFit.fill,
                                   ),
                                   // Bounding Boxes
-                                  if (_results.isNotEmpty)
+                                  if (_current!.results.isNotEmpty)
                                     CustomPaint(
                                       painter: BoundingBoxPainter(
                                         _resultsForDisplay,
@@ -594,12 +597,12 @@ class _YoloAppState extends State<YoloApp> {
                                       ),
                                     ),
                                   // Região de seleção (regiões salvas + drag atual)
-                                  if ((_savedRegions.isNotEmpty || _draggingRegion != null) && (_isRegionMode || _awaitingRegionSelection))
+                                  if (((_current?.savedRegions.isNotEmpty ?? false) || _draggingRegion != null) && (_isRegionMode || (_current?.awaitingRegionSelection ?? false)))
                                     CustomPaint(
-                                      painter: _RegionSelectorPainter(_savedRegions, _draggingRegion),
+                                      painter: _RegionSelectorPainter(_current!.savedRegions, _draggingRegion),
                                     ),
                                   // Region selection instruction chip
-                                  if ((_awaitingRegionSelection || _isRegionMode) && !_isProcessing)
+                                  if (((_current?.awaitingRegionSelection ?? false) || _isRegionMode) && !_isProcessing)
                                     Positioned(
                                       bottom: 8,
                                       left: 0,
@@ -618,14 +621,14 @@ class _YoloAppState extends State<YoloApp> {
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
                                               Text(
-                                                _awaitingRegionSelection
+                                                (_current?.awaitingRegionSelection ?? false)
                                                     ? 'Arraste para selecionar área'
                                                     : 'Solte para confirmar',
                                                 style: AppTheme.buttonStyle.copyWith(
                                                   color: Theme.of(context).colorScheme.onSurface,
                                                 ),
                                               ),
-                                              if (_awaitingRegionSelection)
+                                              if (_current?.awaitingRegionSelection ?? false)
                                                 Padding(
                                                   padding: const EdgeInsets.only(top: 4),
                                                   child: Text(
@@ -641,16 +644,16 @@ class _YoloAppState extends State<YoloApp> {
                                       ),
                                     ),
                                   // X buttons para excluir regiões (acima do overlay para receber toques)
-                                  if (_isRegionMode || _awaitingRegionSelection)
-                                    for (int i = 0; i < _savedRegions.length; i++)
+                                  if (_isRegionMode || (_current?.awaitingRegionSelection ?? false))
+                                    for (int i = 0; i < (_current?.savedRegions.length ?? 0); i++)
                                       Positioned(
-                                        left: (_savedRegions[i].right * constraints.maxWidth - 16).clamp(0.0, constraints.maxWidth - 28),
-                                        top: (_savedRegions[i].top * constraints.maxHeight - 16).clamp(0.0, constraints.maxHeight - 28),
+                                        left: (_current!.savedRegions[i].right * constraints.maxWidth - 16).clamp(0.0, constraints.maxWidth - 28),
+                                        top: (_current!.savedRegions[i].top * constraints.maxHeight - 16).clamp(0.0, constraints.maxHeight - 28),
                                         child: GestureDetector(
                                           behavior: HitTestBehavior.opaque,
                                           onTap: () => setState(() {
-                                            final region = _savedRegions.removeAt(i);
-                                            _results.removeWhere((r) {
+                                            final region = _current!.savedRegions.removeAt(i);
+                                            _current!.results.removeWhere((r) {
                                               final cx = (r.location.left + r.location.right) / 2;
                                               final cy = (r.location.top + r.location.bottom) / 2;
                                               return region.contains(Offset(cx, cy));
@@ -724,7 +727,7 @@ class _YoloAppState extends State<YoloApp> {
           ),
 
           // --- Detection card (only when image loaded) ---
-          if (_imageFile != null)
+          if (_current != null)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: Container(
@@ -747,11 +750,11 @@ class _YoloAppState extends State<YoloApp> {
                       _getSummary(),
                       style: AppTheme.valueStyle.copyWith(color: colorScheme.onSurface),
                     ),
-                    if (_results.isNotEmpty)
+                    if ((_current?.results.isNotEmpty ?? false))
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
-                          'Total: ${_results.length} objeto(s)',
+                          'Total: ${_current!.results.length} objeto(s)',
                           style: AppTheme.secondaryStyle.copyWith(color: colorScheme.onSurfaceVariant),
                         ),
                       ),
@@ -767,7 +770,7 @@ class _YoloAppState extends State<YoloApp> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 // B) Detectar button (process button)
-                if (_imageFile != null && (_awaitingRegionSelection || _isRegionMode) && !_isProcessing)
+                if (_current != null && ((_current?.awaitingRegionSelection ?? false) || _isRegionMode) && !_isProcessing)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                     child: SizedBox(
@@ -777,7 +780,7 @@ class _YoloAppState extends State<YoloApp> {
                         onPressed: _confirmRegionAndProcess,
                         icon: const Icon(Icons.check),
                         label: Text(
-                          _savedRegions.isEmpty ? 'Detectar' : 'Detectar ${_savedRegions.length} Área(s)',
+                          (_current?.savedRegions.isEmpty ?? true) ? 'Detectar' : 'Detectar ${_current!.savedRegions.length} Área(s)',
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.emerald,
@@ -790,7 +793,7 @@ class _YoloAppState extends State<YoloApp> {
                   ),
 
                 // C) Ghost toolbar
-                if (_imageFile != null && !_awaitingRegionSelection && !_isRegionMode)
+                if (_current != null && !(_current?.awaitingRegionSelection ?? false) && !_isRegionMode)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                     child: Row(
@@ -818,7 +821,7 @@ class _YoloAppState extends State<YoloApp> {
                             style: _ghostButtonStyle(isActive: _isEditMode, colorScheme: colorScheme, isDarkMode: widget.isDarkMode),
                           ),
                         ),
-                        if (_isEditMode && _undoStack.isNotEmpty)
+                        if (_isEditMode && (_current?.undoStack.isNotEmpty ?? false))
                           Padding(
                             padding: const EdgeInsets.only(left: 8),
                             child: SizedBox(
