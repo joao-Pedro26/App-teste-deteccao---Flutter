@@ -377,6 +377,31 @@ class _YoloAppState extends State<YoloApp> {
     });
   }
 
+  Future<void> _confirmNewSession() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Nova sessão'),
+        content: const Text('Limpar todas as fotos e começar do zero?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Limpar', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() {
+      _photos.clear();
+      _currentIndex = 0;
+      _isEditMode = false;
+      _isRegionMode = false;
+      _transformationController.value = Matrix4.identity();
+    });
+  }
+
   void _showImageSourceSheet() {
     showModalBottomSheet<void>(
       context: context,
@@ -519,6 +544,15 @@ class _YoloAppState extends State<YoloApp> {
           child: Divider(height: 1, thickness: 1, color: colorScheme.outline),
         ),
         actions: [
+          // Nova sessão button
+          if (_photos.isNotEmpty)
+            TextButton(
+              onPressed: _confirmNewSession,
+              child: Text(
+                'Nova sessão',
+                style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
+              ),
+            ),
           // Theme toggle button
           IconButton(
             icon: Icon(
@@ -943,8 +977,16 @@ class _YoloAppState extends State<YoloApp> {
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
-                          'Total: ${_current!.results.length} objeto(s)',
+                          'Foto atual: ${_current!.results.length} peça(s)',
                           style: AppTheme.secondaryStyle.copyWith(color: colorScheme.onSurfaceVariant),
+                        ),
+                      ),
+                    if (_photos.length > 1)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          'Total da sessão: ${_photos.fold(0, (sum, p) => sum + p.results.length)} peça(s)',
+                          style: AppTheme.secondaryStyle.copyWith(color: AppTheme.emerald),
                         ),
                       ),
                   ],
