@@ -1,11 +1,10 @@
 import 'dart:io';
-import 'dart:math' show cos, sin, min, max;
+import 'dart:math' show min, max;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image/image.dart' as img;
 import 'yolo_service.dart';
 import 'widgets/box_painter.dart';
-import 'widgets/manual_box_editor.dart';
 import 'theme/app_theme.dart';
 
 sealed class _EditAction {}
@@ -19,6 +18,32 @@ class _RemovedDetection extends _EditAction {
   final Recognition removed;
   final int originalIndex;
   _RemovedDetection(this.removed, this.originalIndex);
+}
+
+class _MovedDetection extends _EditAction {
+  final Recognition oldDetection;
+  final Recognition newDetection;
+  _MovedDetection(this.oldDetection, this.newDetection);
+}
+
+class PhotoSession {
+  final File imageFile;
+  img.Image? decodedImage;
+  List<Recognition> results;
+  List<_EditAction> undoStack;
+  List<Rect> savedRegions;
+  bool awaitingRegionSelection;
+
+  PhotoSession({
+    required this.imageFile,
+    this.decodedImage,
+    List<Recognition>? results,
+    List<_EditAction>? undoStack,
+    List<Rect>? savedRegions,
+    this.awaitingRegionSelection = true,
+  })  : results = results ?? [],
+        undoStack = undoStack ?? [],
+        savedRegions = savedRegions ?? [];
 }
 
 void main() => runApp(const FiscalizaApp());
@@ -88,9 +113,10 @@ class _YoloAppState extends State<YoloApp> {
   static const int _maxUndoDepth = 20;
   final TransformationController _transformationController = TransformationController();
 
-  Rect? _manualBoxRect;
-  bool _isManualBoxActive = false;
-  int _activeHandleIndex = -1;
+  int? _draggingCircleIndex;
+  Recognition? _draggingOriginalDetection;
+  Offset? _draggingCenterOverride;
+  bool _significantDrag = false;
   List<Rect> _savedRegions = [];
 
   @override
@@ -230,149 +256,60 @@ class _YoloAppState extends State<YoloApp> {
     }
   }
 
-  /// Hit testing: verifica se um toque caiu dentro de alguma box
-  Recognition? _hitTest(Offset tapPosition) {
+  int? _hitTestCircle(Offset localPosition, {double extraPadding = 16.0}) {
     if (_currentWidgetSize == null || _results.isEmpty) return null;
-
-    // Converter tap para coordenadas normalizadas
-    final normalizedTap = Offset(
-      tapPosition.dx / _currentWidgetSize!.width,
-      tapPosition.dy / _currentWidgetSize!.height,
-    );
-
-    // Testar cada box (de trás para frente para pegar a mais "em cima")
     for (int i = _results.length - 1; i >= 0; i--) {
-      final box = _results[i];
-      if (box.isOBB && box.angle != null) {
-        // Hit testing para OBB - teste de ponto em polígono
-        if (_pointInRotatedRect(normalizedTap, box)) {
-          return box;
-        }
-      } else {
-        // Hit testing para box reto
-        if (box.location.contains(normalizedTap)) {
-          return box;
-        }
-      }
+      final d = _results[i];
+      final cx = (d.location.left + d.location.right) / 2 * _currentWidgetSize!.width;
+      final cy = (d.location.top + d.location.bottom) / 2 * _currentWidgetSize!.height;
+      final bw = d.location.width * _currentWidgetSize!.width;
+      final bh = d.location.height * _currentWidgetSize!.height;
+      final drawnRadius = (min(bw, bh) * 0.30).clamp(5.0, 11.0);
+      final hitR = drawnRadius + extraPadding;
+      final dx = localPosition.dx - cx;
+      final dy = localPosition.dy - cy;
+      if (dx * dx + dy * dy <= hitR * hitR) return i;
     }
     return null;
   }
 
-  /// Testa se ponto está dentro de retângulo rotacionado
-  bool _pointInRotatedRect(Offset point, Recognition box) {
-    // Converter box para vértices rotacionados (mesma lógica do box_painter)
-    final cx = (box.location.left + box.location.right) / 2;
-    final cy = (box.location.top + box.location.bottom) / 2;
-    final w = box.location.width;
-    final h = box.location.height;
-    final theta = box.angle!;
-
-    final cosA = cos(theta);
-    final sinA = sin(theta);
-    final hw = w / 2;
-    final hh = h / 2;
-
-    // Cantos do retângulo rotacionado
-    final corners = [
-      Offset(-hw, -hh),
-      Offset(hw, -hh),
-      Offset(hw, hh),
-      Offset(-hw, hh),
-    ];
-
-    final rotated = corners.map((c) => Offset(
-      cx + c.dx * cosA - c.dy * sinA,
-      cy + c.dx * sinA + c.dy * cosA,
-    )).toList();
-
-    // Teste de ponto em polígono convexo usando produto vetorial
-    bool isInside = true;
-    for (int i = 0; i < 4; i++) {
-      final p1 = rotated[i];
-      final p2 = rotated[(i + 1) % 4];
-      // Produto vetorial 2D
-      final cross = (p2.dx - p1.dx) * (point.dy - p1.dy) -
-                    (p2.dy - p1.dy) * (point.dx - p1.dx);
-      // Se todos os produtos tiverem mesmo sinal, ponto está dentro
-      if (i == 0) {
-        isInside = cross >= 0;
-      } else if ((cross >= 0) != isInside) {
-        return false;
-      }
-    }
-    return true;
+  Size _averageDetectionSize() {
+    if (_results.isEmpty) return const Size(0.06, 0.06);
+    final avgW = _results.map((r) => r.location.width).reduce((a, b) => a + b) / _results.length;
+    final avgH = _results.map((r) => r.location.height).reduce((a, b) => a + b) / _results.length;
+    return Size(avgW, avgH);
   }
 
-  void _openManualBoxEditor(Offset normalizedCenter) {
-    const double defaultSize = 0.08;
-    setState(() {
-      _manualBoxRect = Rect.fromLTRB(
-        (normalizedCenter.dx - defaultSize / 2).clamp(0.0, 1.0),
-        (normalizedCenter.dy - defaultSize / 2).clamp(0.0, 1.0),
-        (normalizedCenter.dx + defaultSize / 2).clamp(0.0, 1.0),
-        (normalizedCenter.dy + defaultSize / 2).clamp(0.0, 1.0),
-      );
-      _isManualBoxActive = true;
-      _activeHandleIndex = -1;
-    });
-  }
-
-  void _updateManualBoxCorner(int cornerIndex, Offset delta) {
-    if (_currentWidgetSize == null || _manualBoxRect == null) return;
-    final dx = delta.dx / _currentWidgetSize!.width;
-    final dy = delta.dy / _currentWidgetSize!.height;
-
-    double l = _manualBoxRect!.left;
-    double t = _manualBoxRect!.top;
-    double r = _manualBoxRect!.right;
-    double b = _manualBoxRect!.bottom;
-
-    const double minSize = 0.02;
-
-    switch (cornerIndex) {
-      case 0: // TL
-        l = (l + dx).clamp(0.0, r - minSize);
-        t = (t + dy).clamp(0.0, b - minSize);
-      case 1: // TR
-        r = (r + dx).clamp(l + minSize, 1.0);
-        t = (t + dy).clamp(0.0, b - minSize);
-      case 2: // BL
-        l = (l + dx).clamp(0.0, r - minSize);
-        b = (b + dy).clamp(t + minSize, 1.0);
-      case 3: // BR
-        r = (r + dx).clamp(l + minSize, 1.0);
-        b = (b + dy).clamp(t + minSize, 1.0);
-    }
-
-    setState(() => _manualBoxRect = Rect.fromLTRB(l, t, r, b));
-  }
-
-  void _confirmManualBox() {
-    if (_manualBoxRect == null) return;
-    final label = _yoloService.labels.isNotEmpty ? _yoloService.labels.first : 'objeto';
-    const classId = 0;
-    final newBox = Recognition(
-      classId,
-      label,
+  void _createCircleAtPosition(Offset localPosition) {
+    if (_currentWidgetSize == null) return;
+    final center = Offset(
+      (localPosition.dx / _currentWidgetSize!.width).clamp(0.0, 1.0),
+      (localPosition.dy / _currentWidgetSize!.height).clamp(0.0, 1.0),
+    );
+    final s = _averageDetectionSize();
+    final newDet = Recognition(
+      0,
+      _yoloService.labels.isNotEmpty ? _yoloService.labels.first : 'objeto',
       1.0,
-      _manualBoxRect!,
+      Rect.fromCenter(center: center, width: s.width.clamp(0.01, 0.5), height: s.height.clamp(0.01, 0.5)),
     );
     setState(() {
-      _results.add(newBox);
-      _undoStack.add(_AddedDetections([newBox]));
+      _results.add(newDet);
+      _undoStack.add(_AddedDetections([newDet]));
       if (_undoStack.length > _maxUndoDepth) _undoStack.removeAt(0);
-      _manualBoxRect = null;
-      _isManualBoxActive = false;
-      _activeHandleIndex = -1;
     });
   }
 
-  void _cancelManualBox() {
-    setState(() {
-      _manualBoxRect = null;
-      _isManualBoxActive = false;
-      _activeHandleIndex = -1;
-    });
+  List<Recognition> get _resultsForDisplay {
+    if (_draggingCircleIndex == null || _draggingCenterOverride == null) return _results;
+    final list = List<Recognition>.from(_results);
+    final old = list[_draggingCircleIndex!];
+    list[_draggingCircleIndex!] = Recognition(
+      old.classId, old.label, old.score,
+      Rect.fromCenter(center: _draggingCenterOverride!, width: old.location.width, height: old.location.height),
+      angle: old.angle,
+    );
+    return list;
   }
 
   /// Remover box existente
@@ -395,6 +332,9 @@ class _YoloAppState extends State<YoloApp> {
           _results.insert(idx, removed);
         case _AddedDetections(:final added):
           _results.removeWhere((r) => added.contains(r));
+        case _MovedDetection(:final oldDetection, :final newDetection):
+          final idx = _results.indexOf(newDetection);
+          if (idx >= 0) _results[idx] = oldDetection;
       }
     });
   }
@@ -419,31 +359,6 @@ class _YoloAppState extends State<YoloApp> {
       minimumSize: const Size.fromHeight(40),
       foregroundColor: colorScheme.onSurfaceVariant,
     );
-  }
-
-  /// Handler para tap na imagem (modo edição)
-  void _handleImageTap(Offset tapPosition) {
-    if (!_isEditMode) return;
-    if (_isManualBoxActive) return;
-
-    final hitBox = _hitTest(tapPosition);
-    if (hitBox != null) {
-      _removeBox(hitBox);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${hitBox.label} removido'),
-          duration: const Duration(seconds: 1),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
-    } else {
-      if (_currentWidgetSize == null) return;
-      final normalizedTap = Offset(
-        tapPosition.dx / _currentWidgetSize!.width,
-        tapPosition.dy / _currentWidgetSize!.height,
-      );
-      _openManualBoxEditor(normalizedTap);
-    }
   }
 
   @override
@@ -545,7 +460,7 @@ class _YoloAppState extends State<YoloApp> {
                             // RenderTransform.hitTestChildren applies inverse transform automatically,
                             // so GestureDetector.localPosition inside this viewer is already in
                             // the child's coordinate space — no manual matrix inversion needed.
-                            panEnabled: !_isRegionMode && !_isManualBoxActive && !_awaitingRegionSelection,
+                            panEnabled: !_isRegionMode && !_awaitingRegionSelection && !_isEditMode,
                             scaleEnabled: true,
                             minScale: 1.0,
                             maxScale: 6.0,
@@ -553,7 +468,24 @@ class _YoloAppState extends State<YoloApp> {
                             child: AspectRatio(
                               aspectRatio: aspectRatio,
                               child: GestureDetector(
-                              onPanStart: (_isRegionMode || _awaitingRegionSelection || _isManualBoxActive)
+                              onTapUp: _isEditMode
+                                  ? (details) {
+                                      final hitIdx = _hitTestCircle(details.localPosition, extraPadding: 0);
+                                      if (hitIdx != null) {
+                                        final removed = _results[hitIdx];
+                                        _removeBox(removed);
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('${removed.label} removido'),
+                                            duration: const Duration(seconds: 1),
+                                          ),
+                                        );
+                                      } else {
+                                        _createCircleAtPosition(details.localPosition);
+                                      }
+                                    }
+                                  : null,
+                              onPanStart: (_isRegionMode || _awaitingRegionSelection || _isEditMode)
                                   ? (details) {
                                       if (_isRegionMode || _awaitingRegionSelection) {
                                         setState(() {
@@ -563,18 +495,22 @@ class _YoloAppState extends State<YoloApp> {
                                             0, 0,
                                           );
                                         });
-                                      } else if (_isManualBoxActive && _manualBoxRect != null && _currentWidgetSize != null) {
-                                        setState(() {
-                                          _activeHandleIndex = ManualBoxEditorPainter.getHandleIndex(
-                                            details.localPosition,
-                                            _manualBoxRect!,
-                                            _currentWidgetSize!,
-                                          );
-                                        });
+                                      } else if (_isEditMode) {
+                                        final hitIdx = _hitTestCircle(details.localPosition, extraPadding: 5);
+                                        if (hitIdx != null) {
+                                          setState(() {
+                                            _draggingCircleIndex = hitIdx;
+                                            _draggingOriginalDetection = _results[hitIdx];
+                                            _draggingCenterOverride = Offset(
+                                              _results[hitIdx].location.center.dx,
+                                              _results[hitIdx].location.center.dy,
+                                            );
+                                          });
+                                        }
                                       }
                                     }
                                   : null,
-                              onPanUpdate: (_isRegionMode || _awaitingRegionSelection || _isManualBoxActive)
+                              onPanUpdate: (_isRegionMode || _awaitingRegionSelection || _isEditMode)
                                   ? (details) {
                                       if (_isRegionMode || _awaitingRegionSelection) {
                                         setState(() {
@@ -589,12 +525,20 @@ class _YoloAppState extends State<YoloApp> {
                                             bottom.clamp(0.0, 1.0),
                                           );
                                         });
-                                      } else if (_isManualBoxActive && _activeHandleIndex >= 0) {
-                                        _updateManualBoxCorner(_activeHandleIndex, details.delta);
+                                      } else if (_isEditMode && _draggingCircleIndex != null) {
+                                        final dx = details.delta.dx / constraints.maxWidth;
+                                        final dy = details.delta.dy / constraints.maxHeight;
+                                        setState(() {
+                                          _draggingCenterOverride = Offset(
+                                            (_draggingCenterOverride!.dx + dx).clamp(0.0, 1.0),
+                                            (_draggingCenterOverride!.dy + dy).clamp(0.0, 1.0),
+                                          );
+                                          _significantDrag = true;
+                                        });
                                       }
                                     }
                                   : null,
-                              onPanEnd: (_isRegionMode || _awaitingRegionSelection || _isManualBoxActive)
+                              onPanEnd: (_isRegionMode || _awaitingRegionSelection || _isEditMode)
                                   ? (details) {
                                       if (_isRegionMode || _awaitingRegionSelection) {
                                         if (_draggingRegion != null &&
@@ -607,13 +551,28 @@ class _YoloAppState extends State<YoloApp> {
                                         } else {
                                           setState(() => _draggingRegion = null);
                                         }
-                                      } else if (_isManualBoxActive) {
-                                        setState(() => _activeHandleIndex = -1);
+                                      } else if (_isEditMode && _draggingCircleIndex != null && _significantDrag) {
+                                        final old = _draggingOriginalDetection!;
+                                        final newDet = Recognition(
+                                          old.classId, old.label, old.score,
+                                          Rect.fromCenter(center: _draggingCenterOverride!, width: old.location.width, height: old.location.height),
+                                          angle: old.angle,
+                                        );
+                                        setState(() {
+                                          _results[_draggingCircleIndex!] = newDet;
+                                          _undoStack.add(_MovedDetection(old, newDet));
+                                          if (_undoStack.length > _maxUndoDepth) _undoStack.removeAt(0);
+                                        });
+                                      }
+                                      if (_isEditMode) {
+                                        setState(() {
+                                          _draggingCircleIndex = null;
+                                          _draggingOriginalDetection = null;
+                                          _draggingCenterOverride = null;
+                                          _significantDrag = false;
+                                        });
                                       }
                                     }
-                                  : null,
-                              onTapUp: _isEditMode
-                                  ? (details) => _handleImageTap(details.localPosition)
                                   : null,
                               onDoubleTap: _awaitingRegionSelection && _draggingRegion != null
                                   ? _confirmRegionAndProcess
@@ -630,14 +589,9 @@ class _YoloAppState extends State<YoloApp> {
                                   if (_results.isNotEmpty)
                                     CustomPaint(
                                       painter: BoundingBoxPainter(
-                                        _results,
+                                        _resultsForDisplay,
                                         isDarkMode: widget.isDarkMode,
                                       ),
-                                    ),
-                                  // Manual box editor overlay
-                                  if (_isManualBoxActive && _manualBoxRect != null)
-                                    CustomPaint(
-                                      painter: ManualBoxEditorPainter(_manualBoxRect!),
                                     ),
                                   // Região de seleção (regiões salvas + drag atual)
                                   if ((_savedRegions.isNotEmpty || _draggingRegion != null) && (_isRegionMode || _awaitingRegionSelection))
@@ -710,7 +664,7 @@ class _YoloAppState extends State<YoloApp> {
                                           ),
                                         ),
                                       ),
-                                  if (_isEditMode && !_isManualBoxActive)
+                                  if (_isEditMode)
                                     Positioned(
                                       bottom: 8,
                                       left: 0,
@@ -812,47 +766,8 @@ class _YoloAppState extends State<YoloApp> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // A) Manual box Confirm/Cancel (replaces toolbar + FABs)
-                if (_isManualBoxActive)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _confirmManualBox,
-                            icon: const Icon(Icons.check),
-                            label: const Text('Confirmar'),
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: AppTheme.emerald, width: 1.5),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              minimumSize: const Size.fromHeight(40),
-                              backgroundColor: widget.isDarkMode ? AppTheme.activeDarkBg : AppTheme.activeLightBg,
-                              foregroundColor: widget.isDarkMode ? AppTheme.activeDarkText : AppTheme.activeLightText,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _cancelManualBox,
-                            icon: const Icon(Icons.close),
-                            label: const Text('Cancelar'),
-                            style: OutlinedButton.styleFrom(
-                              side: BorderSide(color: AppTheme.errorRed, width: 1.5),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              minimumSize: const Size.fromHeight(40),
-                              backgroundColor: AppTheme.errorRed.withValues(alpha: 0.10),
-                              foregroundColor: AppTheme.errorRed,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
                 // B) Detectar button (process button)
-                if (!_isManualBoxActive && _imageFile != null && (_awaitingRegionSelection || _isRegionMode) && !_isProcessing)
+                if (_imageFile != null && (_awaitingRegionSelection || _isRegionMode) && !_isProcessing)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                     child: SizedBox(
@@ -875,7 +790,7 @@ class _YoloAppState extends State<YoloApp> {
                   ),
 
                 // C) Ghost toolbar
-                if (_imageFile != null && !_isManualBoxActive && !_awaitingRegionSelection && !_isRegionMode)
+                if (_imageFile != null && !_awaitingRegionSelection && !_isRegionMode)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                     child: Row(
@@ -926,8 +841,7 @@ class _YoloAppState extends State<YoloApp> {
                   ),
 
                 // D) FAB row
-                if (!_isManualBoxActive)
-                  Padding(
+                Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Row(
                       children: [
