@@ -342,6 +342,147 @@ class _YoloAppState extends State<YoloApp> {
     });
   }
 
+  void _navigateTo(int index) {
+    setState(() {
+      _currentIndex = index;
+      _isEditMode = false;
+      _isRegionMode = false;
+      _transformationController.value = Matrix4.identity();
+    });
+  }
+
+  Future<void> _confirmDeletePhoto(int index) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remover foto?'),
+        content: const Text('Esta foto e suas detecções serão removidas.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Remover', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() {
+      _photos.removeAt(index);
+      if (_photos.isEmpty) {
+        _currentIndex = 0;
+      } else {
+        _currentIndex = _currentIndex.clamp(0, _photos.length - 1);
+      }
+    });
+  }
+
+  void _showImageSourceSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded),
+              title: const Text('Galeria'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _processImage(ImageSource.gallery);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_rounded),
+              title: const Text('Câmera'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _processImage(ImageSource.camera);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildThumbnailStrip() {
+    return SizedBox(
+      height: 48,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        itemCount: _photos.length + 1,
+        itemBuilder: (context, i) {
+          if (i == _photos.length) {
+            return Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: GestureDetector(
+                onTap: _showImageSourceSheet,
+                child: Container(
+                  width: 40,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: AppTheme.emerald.withValues(alpha: 0.75),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Icon(Icons.add, color: Colors.white, size: 20),
+                ),
+              ),
+            );
+          }
+          final isActive = i == _currentIndex;
+          final count = _photos[i].results.length;
+          return Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: GestureDetector(
+              onTap: () => _navigateTo(i),
+              onLongPress: () => _confirmDeletePhoto(i),
+              child: Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(4),
+                      border: isActive
+                          ? Border.all(color: AppTheme.emerald, width: 2)
+                          : Border.all(color: const Color(0xFF444444), width: 1),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(isActive ? 2 : 3),
+                      child: Image.file(
+                        _photos[i].imageFile,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    margin: const EdgeInsets.all(2),
+                    padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.65),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                    child: Text(
+                      '$count',
+                      style: const TextStyle(
+                        color: AppTheme.emerald,
+                        fontSize: 8,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   ButtonStyle _ghostButtonStyle({
     required bool isActive,
     required ColorScheme colorScheme,
@@ -433,7 +574,8 @@ class _YoloAppState extends State<YoloApp> {
                   )
                 : Padding(
                     padding: const EdgeInsets.all(12.0),
-                    child: Container(
+                    child: Stack(children: [
+                      Container(
                       decoration: _isEditMode
                           ? BoxDecoration(
                               borderRadius: BorderRadius.circular(8),
@@ -723,8 +865,55 @@ class _YoloAppState extends State<YoloApp> {
                       ),
                     ),
                   ),
+                  // Left navigation arrow
+                  if (_currentIndex > 0)
+                    Positioned(
+                      left: 4,
+                      top: 0,
+                      bottom: 0,
+                      child: Center(
+                        child: GestureDetector(
+                          onTap: () => _navigateTo(_currentIndex - 1),
+                          child: Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: AppTheme.emerald.withValues(alpha: 0.85),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.chevron_left, color: Colors.white, size: 20),
+                          ),
+                        ),
+                      ),
+                    ),
+                  // Right navigation arrow
+                  if (_currentIndex < _photos.length - 1)
+                    Positioned(
+                      right: 4,
+                      top: 0,
+                      bottom: 0,
+                      child: Center(
+                        child: GestureDetector(
+                          onTap: () => _navigateTo(_currentIndex + 1),
+                          child: Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: AppTheme.emerald.withValues(alpha: 0.85),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.chevron_right, color: Colors.white, size: 20),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                  ),
                 ),
           ),
+
+          // --- Thumbnail strip ---
+          if (_photos.isNotEmpty) _buildThumbnailStrip(),
 
           // --- Detection card (only when image loaded) ---
           if (_current != null)
