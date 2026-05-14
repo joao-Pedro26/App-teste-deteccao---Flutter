@@ -15,23 +15,14 @@ List<Recognition> sortDetectionsSpatially(List<Recognition> detections) {
 
 // Paleta de cores por classe (cicla automaticamente)
 const List<Color> _boxColors = [
-  Color(0xFFE53935),
-  Color(0xFF1E88E5),
   Color(0xFF43A047),
-  Color(0xFFFB8C00),
-  Color(0xFF8E24AA),
-  Color(0xFF00ACC1),
-  Color(0xFFFFB300),
-  Color(0xFF6D4C41),
-  Color(0xFF00897B),
-  Color(0xFFD81B60),
 ];
 
 class BoundingBoxPainter extends CustomPainter {
   final List<Recognition> detections;
   final bool isDarkMode;
 
-  BoundingBoxPainter(this.detections, {required this.isDarkMode});
+  BoundingBoxPainter(this.detections, {this.isDarkMode = false});
 
   // Desenha círculo com número no centro da box
   void _drawNumberedCircle(
@@ -40,19 +31,14 @@ class BoundingBoxPainter extends CustomPainter {
     final cx = (d.location.left + d.location.right) / 2 * size.width;
     final cy = (d.location.top + d.location.bottom) / 2 * size.height;
 
-    // Raio: 30% da menor dimensão da box
+    // Raio: 30% da menor dimensão, mas nunca ultrapassa a borda com menos de 3px de margem
     final boxWidth = d.location.width * size.width;
     final boxHeight = d.location.height * size.height;
-    final radius = (min(boxWidth, boxHeight) * 0.30).clamp(5.0, 11.0);
+    final halfMin = min(boxWidth, boxHeight) / 2;
+    const padding = 3.0;
+    final double maxAllowed = max(4.0, halfMin - padding);
+    final double radius = (min(boxWidth, boxHeight) * 0.30).clamp(4.0, min(11.0, maxAllowed));
     final fontSize = (radius * 0.9).clamp(4.0, 9.0);
-
-    // Light mode: halo branco antes do círculo colorido
-    if (!isDarkMode) {
-      final haloPaint = Paint()
-        ..color = Colors.white
-        ..style = PaintingStyle.fill;
-      canvas.drawCircle(Offset(cx, cy), radius + 2, haloPaint);
-    }
 
     // Círculo de fundo
     final circlePaint = Paint()
@@ -64,7 +50,7 @@ class BoundingBoxPainter extends CustomPainter {
     final borderPaint = Paint()
       ..color = Colors.white
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
+      ..strokeWidth = 0.5;
     canvas.drawCircle(Offset(cx, cy), radius, borderPaint);
 
     // Número centralizado — fonte proporcional ao raio
@@ -118,19 +104,12 @@ class BoundingBoxPainter extends CustomPainter {
       d.location.bottom * size.height,
     );
 
-    // Light mode: halo branco antes do contorno colorido
-    if (!isDarkMode) {
-      final haloPaint = Paint()
-        ..color = Colors.white.withValues(alpha: 0.7)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 5;
-      canvas.drawRect(rect, haloPaint);
-    }
+  
 
     final boxPaint = Paint()
-      ..color = color
+      ..color = color.withValues(alpha: 0.75)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
+      ..strokeWidth = 1.0;
 
     canvas.drawRect(rect, boxPaint);
     // _drawLabel(canvas, rect.left, rect.top, d, color);
@@ -179,26 +158,18 @@ class BoundingBoxPainter extends CustomPainter {
       ..lineTo(rotated[3].dx, rotated[3].dy)
       ..close();
 
-    // Light mode: halo branco antes do contorno colorido
-    if (!isDarkMode) {
-      final haloPaint = Paint()
-        ..color = Colors.white.withValues(alpha: 0.7)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 5;
-      canvas.drawPath(path, haloPaint);
-    }
 
     final boxPaint = Paint()
-      ..color = color
+      ..color = color.withValues(alpha: 0.75)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
+      ..strokeWidth = 1.0;
 
     canvas.drawPath(path, boxPaint);
 
     // Linha indicando a direção/orientação (topo do box)
     final directionPaint = Paint()
-      ..color = color
-      ..strokeWidth = 3.0
+      ..color = color.withValues(alpha: 0.75)
+      ..strokeWidth = 1.5
       ..strokeCap = StrokeCap.round;
     canvas.drawLine(rotated[0], rotated[1], directionPaint);
 
@@ -242,6 +213,5 @@ class BoundingBoxPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant BoundingBoxPainter oldDelegate) =>
-      oldDelegate.detections != detections ||
-      oldDelegate.isDarkMode != isDarkMode;
+      oldDelegate.detections != detections;
 }

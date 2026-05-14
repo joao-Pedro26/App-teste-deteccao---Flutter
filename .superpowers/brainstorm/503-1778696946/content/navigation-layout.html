@@ -1,0 +1,103 @@
+<h2>Como navegar entre as fotos?</h2>
+<p class="subtitle">Escolha o estilo de navegação para o carrossel de fotos</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#111;border-radius:8px;padding:12px;font-family:monospace;font-size:11px;color:#eee;min-height:220px;position:relative;">
+        <!-- App bar -->
+        <div style="background:#10B981;border-radius:4px;padding:4px 8px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:10px;font-weight:bold;">Fiscaliza</span>
+          <span style="font-size:9px;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;">Total: 12 peças</span>
+        </div>
+        <!-- Image area -->
+        <div style="background:#222;border-radius:4px;height:100px;display:flex;align-items:center;justify-content:center;position:relative;margin-bottom:8px;">
+          <span style="color:#555;font-size:10px;">📷 Foto 2 de 3</span>
+          <div style="position:absolute;left:4px;top:50%;transform:translateY(-50%);background:#10B981;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:10px;">‹</div>
+          <div style="position:absolute;right:4px;top:50%;transform:translateY(-50%);background:#10B981;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:10px;">›</div>
+        </div>
+        <!-- Dot indicators -->
+        <div style="display:flex;justify-content:center;gap:4px;margin-bottom:8px;">
+          <div style="width:6px;height:6px;border-radius:50%;background:#555;"></div>
+          <div style="width:6px;height:6px;border-radius:50%;background:#10B981;"></div>
+          <div style="width:6px;height:6px;border-radius:50%;background:#555;"></div>
+        </div>
+        <!-- Bottom buttons -->
+        <div style="display:flex;gap:6px;">
+          <div style="flex:1;background:#10B981;border-radius:4px;padding:4px;text-align:center;font-size:9px;">Editar</div>
+          <div style="flex:1;background:#333;border-radius:4px;padding:4px;text-align:center;font-size:9px;">+ Nova Foto</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Setas + Pontos</h3>
+      <p>Setas laterais para navegar, pontos indicando qual foto está ativa. Simples e familiar.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#111;border-radius:8px;padding:12px;font-family:monospace;font-size:11px;color:#eee;min-height:220px;position:relative;">
+        <!-- App bar -->
+        <div style="background:#10B981;border-radius:4px;padding:4px 8px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:10px;font-weight:bold;">Fiscaliza</span>
+          <span style="font-size:9px;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;">Total: 12 peças</span>
+        </div>
+        <!-- Image area -->
+        <div style="background:#222;border-radius:4px;height:90px;display:flex;align-items:center;justify-content:center;margin-bottom:8px;">
+          <span style="color:#555;font-size:10px;">📷 Foto 2 de 3</span>
+        </div>
+        <!-- Thumbnail strip -->
+        <div style="display:flex;gap:4px;margin-bottom:8px;overflow:hidden;">
+          <div style="width:36px;height:36px;background:#333;border-radius:3px;border:1px solid #555;display:flex;align-items:center;justify-content:center;font-size:8px;color:#888;">1<br/><span style="font-size:7px;color:#10B981">4 pç</span></div>
+          <div style="width:36px;height:36px;background:#333;border-radius:3px;border:2px solid #10B981;display:flex;align-items:center;justify-content:center;font-size:8px;color:#fff;">2<br/><span style="font-size:7px;color:#10B981">5 pç</span></div>
+          <div style="width:36px;height:36px;background:#333;border-radius:3px;border:1px solid #555;display:flex;align-items:center;justify-content:center;font-size:8px;color:#888;">3<br/><span style="font-size:7px;color:#10B981">3 pç</span></div>
+          <div style="width:36px;height:36px;background:#10B981;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:14px;opacity:0.8;">+</div>
+        </div>
+        <!-- Bottom buttons -->
+        <div style="display:flex;gap:6px;">
+          <div style="flex:1;background:#10B981;border-radius:4px;padding:4px;text-align:center;font-size:9px;">Editar</div>
+          <div style="flex:1;background:#333;border-radius:4px;padding:4px;text-align:center;font-size:9px;">Galeria / Câmera</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Tira de Miniaturas</h3>
+      <p>Faixa horizontal com thumbnails embaixo. Mostra contagem por foto. Botão "+" pra adicionar nova. Toca numa miniatura pra navegar.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#111;border-radius:8px;padding:12px;font-family:monospace;font-size:11px;color:#eee;min-height:220px;position:relative;">
+        <!-- App bar -->
+        <div style="background:#10B981;border-radius:4px;padding:4px 8px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:10px;font-weight:bold;">Fiscaliza</span>
+          <span style="font-size:9px;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;">Total: 12 peças</span>
+        </div>
+        <!-- Image area -->
+        <div style="background:#222;border-radius:4px;height:100px;display:flex;align-items:center;justify-content:center;margin-bottom:8px;">
+          <span style="color:#555;font-size:10px;">📷 Foto ativa (swipe ←→)</span>
+        </div>
+        <!-- Card info -->
+        <div style="background:#1a1a1a;border-radius:4px;padding:6px;margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:9px;color:#888;">Foto 2 de 3 · 5 peças</span>
+            <span style="font-size:9px;color:#10B981;">Editar</span>
+          </div>
+        </div>
+        <!-- Bottom buttons -->
+        <div style="display:flex;gap:6px;">
+          <div style="flex:1;background:#10B981;border-radius:4px;padding:4px;text-align:center;font-size:9px;">📷 Nova Foto</div>
+          <div style="flex:1;background:#333;border-radius:4px;padding:4px;text-align:center;font-size:9px;">🖼 Galeria</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Swipe Puro</h3>
+      <p>Desliza horizontalmente entre as fotos. Sem thumbnails visíveis. Mais imersivo, mas menos visibilidade das fotos anteriores.</p>
+    </div>
+  </div>
+
+</div>

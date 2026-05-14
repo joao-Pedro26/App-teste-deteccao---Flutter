@@ -158,12 +158,17 @@ class _YoloAppState extends State<YoloApp> {
     );
     if (picked == null) return;
 
+    // Decode immediately so the image viewer has the correct aspect ratio
+    // before detection runs (avoids the 1:1 default causing empty space).
+    final bytes = await File(picked.path).readAsBytes();
+    final decoded = img.decodeImage(bytes);
+
     setState(() {
       _isProcessing = false;
       _isEditMode = false;
       _isRegionMode = false;
       _transformationController.value = Matrix4.identity();
-      _photos.add(PhotoSession(imageFile: File(picked.path)));
+      _photos.add(PhotoSession(imageFile: File(picked.path), decodedImage: decoded));
       _currentIndex = _photos.length - 1;
     });
   }
@@ -198,8 +203,8 @@ class _YoloAppState extends State<YoloApp> {
     });
 
     try {
-      final bytes = await _current!.imageFile.readAsBytes();
-      final decoded = img.decodeImage(bytes);
+      final decoded = _current!.decodedImage ??
+          img.decodeImage(await _current!.imageFile.readAsBytes());
 
       if (decoded != null) {
         final regions = _current!.savedRegions.isNotEmpty
@@ -608,7 +613,7 @@ class _YoloAppState extends State<YoloApp> {
                   )
                 : Padding(
                     padding: const EdgeInsets.all(12.0),
-                    child: Stack(children: [
+                    child: Stack(fit: StackFit.expand, children: [
                       Container(
                       decoration: _isEditMode
                           ? BoxDecoration(

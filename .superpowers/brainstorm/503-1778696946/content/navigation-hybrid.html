@@ -1,0 +1,139 @@
+<h2>Setas + Faixa Compacta</h2>
+<p class="subtitle">Combinação das opções A e B — variações de tamanho e estilo da faixa</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#111;border-radius:8px;padding:12px;font-family:monospace;font-size:11px;color:#eee;min-height:240px;">
+        <div style="background:#10B981;border-radius:4px;padding:4px 8px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:10px;font-weight:bold;">Fiscaliza</span>
+          <span style="font-size:9px;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;">Total: 12 peças</span>
+        </div>
+        <!-- Image with side arrows -->
+        <div style="background:#222;border-radius:4px;height:110px;display:flex;align-items:center;justify-content:center;position:relative;margin-bottom:6px;">
+          <span style="color:#555;font-size:10px;">📷 Foto 2 de 3</span>
+          <div style="position:absolute;left:4px;top:50%;transform:translateY(-50%);background:rgba(16,185,129,0.85);border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;">‹</div>
+          <div style="position:absolute;right:4px;top:50%;transform:translateY(-50%);background:rgba(16,185,129,0.85);border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;">›</div>
+        </div>
+        <!-- Compact thumbnail strip: small squares, number + count only -->
+        <div style="display:flex;gap:3px;align-items:center;margin-bottom:8px;padding:0 2px;">
+          <div style="width:28px;height:28px;background:#2a2a2a;border-radius:3px;border:1px solid #444;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+            <span style="font-size:8px;color:#888;">1</span>
+            <span style="font-size:7px;color:#10B981;">4pç</span>
+          </div>
+          <div style="width:28px;height:28px;background:#2a2a2a;border-radius:3px;border:2px solid #10B981;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+            <span style="font-size:8px;color:#fff;">2</span>
+            <span style="font-size:7px;color:#10B981;">5pç</span>
+          </div>
+          <div style="width:28px;height:28px;background:#2a2a2a;border-radius:3px;border:1px solid #444;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+            <span style="font-size:8px;color:#888;">3</span>
+            <span style="font-size:7px;color:#10B981;">3pç</span>
+          </div>
+          <div style="width:28px;height:28px;background:#10B981;border-radius:3px;opacity:0.75;display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;">+</div>
+          <div style="flex:1;"></div>
+          <span style="font-size:8px;color:#555;">← toca pra navegar</span>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <div style="flex:1;background:#10B981;border-radius:4px;padding:4px;text-align:center;font-size:9px;">Editar</div>
+          <div style="flex:1;background:#333;border-radius:4px;padding:4px;text-align:center;font-size:9px;">Galeria / Câmera</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Quadradinhos (28px)</h3>
+      <p>Faixa bem compacta com quadradinhos mostrando número e contagem. Setas sobrepostas na foto.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#111;border-radius:8px;padding:12px;font-family:monospace;font-size:11px;color:#eee;min-height:240px;">
+        <div style="background:#10B981;border-radius:4px;padding:4px 8px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:10px;font-weight:bold;">Fiscaliza</span>
+          <span style="font-size:9px;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;">Total: 12 peças</span>
+        </div>
+        <!-- Image with side arrows -->
+        <div style="background:#222;border-radius:4px;height:110px;display:flex;align-items:center;justify-content:center;position:relative;margin-bottom:6px;">
+          <span style="color:#555;font-size:10px;">📷 Foto 2 de 3</span>
+          <div style="position:absolute;left:4px;top:50%;transform:translateY(-50%);background:rgba(16,185,129,0.85);border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;">‹</div>
+          <div style="position:absolute;right:4px;top:50%;transform:translateY(-50%);background:rgba(16,185,129,0.85);border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;">›</div>
+        </div>
+        <!-- Pills strip -->
+        <div style="display:flex;gap:4px;align-items:center;margin-bottom:8px;overflow:hidden;">
+          <div style="background:#2a2a2a;border:1px solid #444;border-radius:12px;padding:2px 8px;display:flex;gap:4px;align-items:center;">
+            <span style="font-size:8px;color:#888;">Foto 1</span>
+            <span style="font-size:8px;color:#10B981;background:rgba(16,185,129,0.15);padding:1px 4px;border-radius:8px;">4</span>
+          </div>
+          <div style="background:#1a3a2a;border:1px solid #10B981;border-radius:12px;padding:2px 8px;display:flex;gap:4px;align-items:center;">
+            <span style="font-size:8px;color:#fff;">Foto 2</span>
+            <span style="font-size:8px;color:#10B981;background:rgba(16,185,129,0.25);padding:1px 4px;border-radius:8px;">5</span>
+          </div>
+          <div style="background:#2a2a2a;border:1px solid #444;border-radius:12px;padding:2px 8px;display:flex;gap:4px;align-items:center;">
+            <span style="font-size:8px;color:#888;">Foto 3</span>
+            <span style="font-size:8px;color:#10B981;background:rgba(16,185,129,0.15);padding:1px 4px;border-radius:8px;">3</span>
+          </div>
+          <div style="background:#10B981;border-radius:12px;padding:2px 8px;opacity:0.8;">
+            <span style="font-size:10px;color:#fff;">+</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <div style="flex:1;background:#10B981;border-radius:4px;padding:4px;text-align:center;font-size:9px;">Editar</div>
+          <div style="flex:1;background:#333;border-radius:4px;padding:4px;text-align:center;font-size:9px;">Galeria / Câmera</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Pills / Chips</h3>
+      <p>Faixa de pills com label "Foto N" e contador. Mais leve visualmente, fácil de scrollar horizontalmente.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#111;border-radius:8px;padding:12px;font-family:monospace;font-size:11px;color:#eee;min-height:240px;">
+        <div style="background:#10B981;border-radius:4px;padding:4px 8px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:10px;font-weight:bold;">Fiscaliza</span>
+          <span style="font-size:9px;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;">Total: 12 peças</span>
+        </div>
+        <!-- Image with side arrows -->
+        <div style="background:#222;border-radius:4px;height:110px;display:flex;align-items:center;justify-content:center;position:relative;margin-bottom:6px;">
+          <span style="color:#555;font-size:10px;">📷 Foto 2 de 3</span>
+          <div style="position:absolute;left:4px;top:50%;transform:translateY(-50%);background:rgba(16,185,129,0.85);border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;">‹</div>
+          <div style="position:absolute;right:4px;top:50%;transform:transparentY(-50%);background:rgba(16,185,129,0.85);border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;">›</div>
+        </div>
+        <!-- Thumbnail strip with actual mini-image preview feel + count badge -->
+        <div style="display:flex;gap:3px;align-items:center;margin-bottom:8px;">
+          <div style="position:relative;width:40px;height:32px;background:#333;border-radius:3px;border:1px solid #444;">
+            <div style="position:absolute;bottom:1px;right:1px;background:rgba(0,0,0,0.7);border-radius:3px;padding:0 3px;">
+              <span style="font-size:7px;color:#10B981;">4</span>
+            </div>
+            <span style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:8px;color:#666;">🖼</span>
+          </div>
+          <div style="position:relative;width:40px;height:32px;background:#1a3a2a;border-radius:3px;border:2px solid #10B981;">
+            <div style="position:absolute;bottom:1px;right:1px;background:rgba(0,0,0,0.7);border-radius:3px;padding:0 3px;">
+              <span style="font-size:7px;color:#10B981;">5</span>
+            </div>
+            <span style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:8px;color:#aaa;">🖼</span>
+          </div>
+          <div style="position:relative;width:40px;height:32px;background:#333;border-radius:3px;border:1px solid #444;">
+            <div style="position:absolute;bottom:1px;right:1px;background:rgba(0,0,0,0.7);border-radius:3px;padding:0 3px;">
+              <span style="font-size:7px;color:#10B981;">3</span>
+            </div>
+            <span style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:8px;color:#666;">🖼</span>
+          </div>
+          <div style="width:40px;height:32px;background:#10B981;border-radius:3px;opacity:0.75;display:flex;align-items:center;justify-content:center;font-size:16px;color:#fff;">+</div>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <div style="flex:1;background:#10B981;border-radius:4px;padding:4px;text-align:center;font-size:9px;">Editar</div>
+          <div style="flex:1;background:#333;border-radius:4px;padding:4px;text-align:center;font-size:9px;">Galeria / Câmera</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Miniaturas com Badge</h3>
+      <p>Thumbnails um pouco maiores (40×32px) com badge de contagem no canto. Parece galeria de fotos real. Setas nas laterais da foto principal.</p>
+    </div>
+  </div>
+
+</div>

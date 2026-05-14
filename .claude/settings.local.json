@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter analyze *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(cd C:\\\\\\\\teste-flutter\\\\\\\\tryingg_flutter)",
+      "Bash(flutter --version)",
+      "Bash(flutter test *)",
+      "Bash(dart -e \"import 'package:flutter/foundation.dart'; void main\\(\\) { print\\(FlutterError.onError.runtimeType\\); }\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\teste-flutter\\\\tryingg_flutter\\\\lib\" -Force)",
+      "Bash(dir \"c:\\\\teste-flutter\\\\tryingg_flutter\\\\lib\")",
+      "Bash(dir \"c:\\\\teste-flutter\\\\tryingg_flutter\\\\lib\\\\widgets\")",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\joaop\\\\.claude\\\\plugins\\\\cache\\\\claude-plugins-official\\\\superpowers\\\\\" -ErrorAction SilentlyContinue | Select-Object Name, Mode)",
+      "Bash(flutter pub *)",
+      "Bash(New-Item -ItemType Directory -Path \"c:\\\\teste-flutter\\\\tryingg_flutter\\\\lib\\\\theme\" -Force)",
+      "Bash(git -C \"c:\\\\teste-flutter\\\\tryingg_flutter\" add lib/widgets/box_painter.dart)",
+      "Bash(git -C 'c:\\\\teste-flutter\\\\tryingg_flutter' commit -m ' *)"
+    ]
+  }
+}

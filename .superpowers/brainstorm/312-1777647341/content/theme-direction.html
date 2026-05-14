@@ -1,0 +1,79 @@
+<h2>Qual direção de tema visual?</h2>
+<p class="subtitle">A escolha define toda a paleta 60-30-10. O app atual é 100% escuro (navy/azul).</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="light" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#F7F8FA; border-radius:8px; padding:16px; min-height:220px; display:flex; flex-direction:column; gap:12px;">
+      <!-- Mockup: Light theme -->
+      <div style="background:#FFFFFF; border-radius:8px; padding:10px 14px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+        <span style="font-weight:700; font-size:13px; color:#111;">YOLO Detector</span>
+        <span style="width:10px;height:10px;border-radius:50%;background:#22C55E;display:inline-block;"></span>
+      </div>
+      <div style="background:#EFEFEF; border-radius:8px; flex:1; min-height:100px; display:flex; align-items:center; justify-content:center;">
+        <span style="color:#9CA3AF; font-size:11px;">Área da imagem</span>
+      </div>
+      <div style="background:#FFFFFF; border-radius:8px; padding:10px 14px;">
+        <span style="font-size:9px; color:#9CA3AF; display:block; margin-bottom:4px;">DETECÇÕES</span>
+        <span style="font-size:12px; font-weight:700; color:#111;">246x madeira</span>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <div style="flex:1; background:#3B82F6; border-radius:8px; padding:8px; text-align:center;">
+          <span style="color:#fff; font-size:10px; font-weight:600;">Galeria</span>
+        </div>
+        <div style="flex:1; background:#3B82F6; border-radius:8px; padding:8px; text-align:center;">
+          <span style="color:#fff; font-size:10px; font-weight:600;">Câmera</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Claro (Light)</h3>
+      <p>Fundo branco/cinza neutro. Parece mais limpo, profissional e moderno. Alto contraste de leitura.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="dark" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0F172A; border-radius:8px; padding:16px; min-height:220px; display:flex; flex-direction:column; gap:12px;">
+      <!-- Mockup: Dark theme refined -->
+      <div style="background:#1E293B; border-radius:8px; padding:10px 14px; display:flex; align-items:center; justify-content:space-between;">
+        <span style="font-weight:700; font-size:13px; color:#F1F5F9;">YOLO Detector</span>
+        <span style="width:10px;height:10px;border-radius:50%;background:#22C55E;display:inline-block;"></span>
+      </div>
+      <div style="background:#1E293B; border-radius:8px; flex:1; min-height:100px; display:flex; align-items:center; justify-content:center;">
+        <span style="color:#475569; font-size:11px;">Área da imagem</span>
+      </div>
+      <div style="background:#1E293B; border-radius:8px; padding:10px 14px;">
+        <span style="font-size:9px; color:#64748B; display:block; margin-bottom:4px;">DETECÇÕES</span>
+        <span style="font-size:12px; font-weight:700; color:#F1F5F9;">246x madeira</span>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <div style="flex:1; background:#3B82F6; border-radius:8px; padding:8px; text-align:center;">
+          <span style="color:#fff; font-size:10px; font-weight:600;">Galeria</span>
+        </div>
+        <div style="flex:1; background:#3B82F6; border-radius:8px; padding:8px; text-align:center;">
+          <span style="color:#fff; font-size:10px; font-weight:600;">Câmera</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Escuro (Dark) refinado</h3>
+      <p>Dark atual melhorado com Slate (azul-acinzentado neutro), não navy. Mantém o feel técnico/profissional.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="both" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:linear-gradient(135deg,#F7F8FA 50%,#0F172A 50%); border-radius:8px; min-height:220px; display:flex; align-items:center; justify-content:center;">
+      <div style="text-align:center; padding:16px;">
+        <div style="font-size:28px; margin-bottom:8px;">☀️🌙</div>
+        <span style="font-size:11px; color:#64748B; background:#fff; padding:4px 8px; border-radius:4px;">Ambos com toggle</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Ambos (Light + Dark toggle)</h3>
+      <p>Implementar os dois com botão de alternância. Mais trabalho, mas máxima flexibilidade.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:24px;">Clique numa opção acima e me diga o que pensa no terminal.</p>
